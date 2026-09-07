@@ -346,11 +346,20 @@ class ListMenuDialog(QDialog):
             self.items_list.addItem(entry)
         self._reload_available()
 
+    def _existing_cmd_ids(self):
+        """Collect the action ids of commands already in the current menu."""
+        out = set()
+        for it in self._cur_items():
+            if isinstance(it, str):
+                out.add(it)
+            elif isinstance(it, dict) and it.get("id"):
+                out.add(it["id"])
+        return out
+
     def _reload_available(self):
         self.avail_list.clear()
         needle = self.search_box.text().strip().lower()
-        existing = {it["id"] if isinstance(it, dict) and it.get("id") else it
-                    for it in self._cur_items() if isinstance(it, (str, dict))}
+        existing = self._existing_cmd_ids()
         for action_id, text in self._catalog.items():
             if needle and needle not in text.lower() and needle not in action_id.lower():
                 continue
@@ -410,9 +419,7 @@ class ListMenuDialog(QDialog):
         if entry is None or not self.path:
             return
         action_id = entry.data(ROLE_TOKEN)
-        existing = {it["id"] if isinstance(it, dict) and it.get("id") else it
-                    for it in self._cur_items() if isinstance(it, (str, dict))}
-        if action_id not in existing:
+        if action_id not in self._existing_cmd_ids():
             self._cur_items().append({"id": action_id, "label": ""})
             self._render_items()
 
