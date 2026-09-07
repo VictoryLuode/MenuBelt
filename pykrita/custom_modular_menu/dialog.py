@@ -2,10 +2,12 @@
 manage list names, actions/order inside each list, per-list popup shortcuts,
 and per-item custom names."""
 
+from krita import Krita
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QKeySequence
 from PyQt5.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QDialog,
     QGroupBox,
     QHBoxLayout,
@@ -29,7 +31,8 @@ class ListMenuDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Edit Custom Modular Menu")
-        self.resize(920, 580)
+        self.setMinimumSize(820, 540)
+        self._apply_default_size()
 
         self._catalog = dict(catalog_actions())
         self.popup_shortcut, self.lists = load_config()  # (str, [{name, shortcut, items}])
@@ -39,6 +42,37 @@ class ListMenuDialog(QDialog):
         self._build_ui()
         self._reload_sidebar()
         self._render_items()
+
+    # ---------- Dialog size (remembered across sessions) ----------
+    def _apply_default_size(self):
+        """Open big enough by default; restore the last-used size if any."""
+        try:
+            w = Krita.instance().readSetting("custom_modular_menu", "dialog_width", "")
+            h = Krita.instance().readSetting("custom_modular_menu", "dialog_height", "")
+            if w and h:
+                self.resize(int(w), int(h))
+                return
+        except Exception:
+            pass
+        # Sensible default based on the available screen
+        try:
+            geo = QApplication.primaryScreen().availableGeometry()
+            self.resize(max(880, int(geo.width() * 0.55)), max(540, int(geo.height() * 0.60)))
+        except Exception:
+            self.resize(920, 580)
+
+    def _persist_size(self):
+        try:
+            app = Krita.instance()
+            app.writeSetting("custom_modular_menu", "dialog_width", str(self.width()))
+            app.writeSetting("custom_modular_menu", "dialog_height", str(self.height()))
+        except Exception:
+            pass
+
+    def done(self, result):
+        """Save the dialog size on any close (OK / Cancel / Esc / X)."""
+        self._persist_size()
+        super().done(result)
 
     # ---------- UI ----------
     def _build_ui(self):
