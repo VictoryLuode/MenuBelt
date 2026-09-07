@@ -28,9 +28,17 @@ Or, from the repo root, run `deploy.bat`.
 ## Usage
 - Edit lists: **Tools → Custom Modular Menu → Edit Custom List**, or the Docker
   panel's **"Edit…"** button.
-- Cursor popup: **Settings → Configure Krita → Keyboard Shortcuts →
-  Custom Modular Menu → Pop Up Custom List**, then bind a trigger key.
+- **Shortcuts (set inside the edit dialog):** each list has a *Popup shortcut*
+  field — press a key combination to pop that list at the cursor. The top
+  *Menu popup shortcut* field binds the whole-menu cursor popup. These are
+  dynamic `QShortcut`s (stored in your config), so you don't need Krita's
+  Keyboard Shortcuts editor.
+- Cursor popup fallback: **Settings → Configure Krita → Keyboard Shortcuts →
+  Custom Modular Menu → Pop Up Custom List** (optional; the action also exists).
 - Docker panel: **Settings → Dockers → Custom Modular Menu**.
+
+> Tip: avoid binding a shortcut that already belongs to a Krita action (Qt will
+> warn about ambiguous shortcuts).
 
 ## Technical notes
 - Every item reuses Krita's native `Krita.instance().action(id)` QAction, so

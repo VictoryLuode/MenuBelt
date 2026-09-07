@@ -1,11 +1,13 @@
 """Custom Modular Menu (CMM) - multi-list editor dialog:
-manage list names, plus the actions and order inside each list."""
+manage list names, actions/order inside each list, and per-list popup shortcuts."""
 
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QKeySequence
 from PyQt5.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QInputDialog,
+    QKeySequenceEdit,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -15,20 +17,21 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
 )
 
-from .config import catalog_actions, load_lists, notify_refresh, save_lists
+from .config import catalog_actions, load_config, notify_refresh, save_config
 
 
 class ListMenuDialog(QDialog):
-    """Multi-list editor. Left = list management, right = actions/order of selected list."""
+    """Multi-list editor. Left = list management, right = actions/order + shortcut."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Edit Custom Modular Menu")
-        self.resize(860, 540)
+        self.resize(880, 560)
 
         self._catalog = dict(catalog_actions())
-        self.lists = load_lists()          # [{name, items}]
+        self.popup_shortcut, self.lists = load_config()  # (str, [{name, shortcut, items}])
         self.current = 0
+        self._loading_sc = False
 
         self._build_ui()
         self._reload_sidebar()
@@ -38,6 +41,15 @@ class ListMenuDialog(QDialog):
     def _build_ui(self):
         root = QVBoxLayout(self)
         root.setSpacing(8)
+
+        # Top: whole-menu popup shortcut
+        popup_row = QHBoxLayout()
+        popup_row.addWidget(QLabel("Menu popup shortcut (whole list menu):"))
+        self.popup_edit = QKeySequenceEdit(self.popup_shortcut)
+        self.popup_edit.setClearButtonEnabled(True)
+        self.popup_edit.setToolTip("Press a key combination here to bind the whole menu popup.")
+        popup_row.addWidget(self.popup_edit, 1)
+        root.addLayout(popup_row)
 
         body = QHBoxLayout()
         body.setSpacing(12)
@@ -60,6 +72,15 @@ class ListMenuDialog(QDialog):
         right = QVBoxLayout()
         self.list_title = QLabel()
         right.addWidget(self.list_title)
+
+        sc_row = QHBoxLayout()
+        sc_row.addWidget(QLabel("Popup shortcut:"))
+        self.list_sc_edit = QKeySequenceEdit()
+        self.list_sc_edit.setClearButtonEnabled(True)
+        self.list_sc_edit.setToolTip("Press a key combination to pop this list at the cursor.")
+        self.list_sc_edit.keySequenceChanged.connect(self._on_list_shortcut_changed)
+        sc_row.addWidget(self.list_sc_edit, 1)
+        right.addLayout(sc_row)
 
         search_row = QHBoxLayout()
         search_row.addWidget(QLabel("Available actions:"))
@@ -120,22 +141,32 @@ class ListMenuDialog(QDialog):
         if 0 <= self.current < self.sidebar.count():
             self.sidebar.setCurrentRow(self.current)
         self.sidebar.blockSignals(False)
-        self.list_title.setText(f"Current list: {self._name()}")
+        self._update_labels()
 
     def _on_switch_list(self, row):
         if 0 <= row < len(self.lists):
             self.current = row
             self._render_items()
-            self.list_title.setText(f"Current list: {self._name()}")
+            self._update_labels()
+
+    def _update_labels(self):
+        self.list_title.setText(f"Current list: {self._name()}")
+        # reflect the selected list's shortcut into the key editor (guarded)
+        self._loading_sc = True
+        self.list_sc_edit.setKeySequence(self._cur_shortcut())
+        self._loading_sc = False
 
     def _name(self):
         return self.lists[self.current]["name"] if self.lists else ""
+
+    def _cur_shortcut(self):
+        return self.lists[self.current].get("shortcut", "") if self.lists else ""
 
     def _new_list(self):
         name, ok = QInputDialog.getText(self, "New List", "List name:")
         if not ok or not name.strip():
             return
-        self.lists.append({"name": name.strip(), "items": []})
+        self.lists.append({"name": name.strip(), "shortcut": "", "items": []})
         self.current = len(self.lists) - 1
         self._reload_sidebar()
         self._render_items()
@@ -158,6 +189,11 @@ class ListMenuDialog(QDialog):
             self.current = max(0, min(self.current, len(self.lists) - 1))
             self._reload_sidebar()
             self._render_items()
+
+    def _on_list_shortcut_changed(self, seq):
+        if self._loading_sc or not self.lists:
+            return
+        self.lists[self.current]["shortcut"] = seq.toString(QKeySequence.PortableText)
 
     # ---------- Selected list items ----------
     def _cur_items(self):
@@ -224,6 +260,7 @@ class ListMenuDialog(QDialog):
 
     # ---------- Save ----------
     def accept(self):
-        save_lists(self.lists)
+        popup = self.popup_edit.keySequence().toString(QKeySequence.PortableText)
+        save_config(popup, self.lists)
         notify_refresh()
         super().accept()
