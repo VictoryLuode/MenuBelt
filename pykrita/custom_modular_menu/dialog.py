@@ -486,11 +486,11 @@ class ListMenuDialog(QDialog):
 
     def _show_item_details(self, item):
         """Fill the bottom detail box with API info for the selected add item."""
-        if item is None or item.data(ROLE_TYPE) == TYPE_CAT:
+        if item is None or item.data(0, ROLE_TYPE) == TYPE_CAT:
             self.detail_box.setText("")
             return
         src = self._current_source()
-        payload = item.data(ROLE_TOKEN)
+        payload = item.data(0, ROLE_TOKEN)
         if src and src.key == "actions" and payload:
             name = item.text()
             cat = self._action_categories.get(payload, "other")
@@ -597,17 +597,17 @@ class ListMenuDialog(QDialog):
         if entry is None or not self.path:
             return
         # Category headers are not addable.
-        if entry.data(ROLE_TYPE) == TYPE_CAT:
+        if entry.data(0, ROLE_TYPE) == TYPE_CAT:
             return
         src = self._current_source()
         if src is None:
             return
-        src.add_fn(self, entry.data(ROLE_TOKEN))
+        src.add_fn(self, entry.data(0, ROLE_TOKEN))
         self._reload_available()  # refresh dedup after adding
 
     def _on_tree_double_click(self, item, _column):
         # Double-click a leaf to add it; a category header just expands/collapses.
-        if item is not None and item.data(ROLE_TYPE) != TYPE_CAT:
+        if item is not None and item.data(0, ROLE_TYPE) != TYPE_CAT:
             self._add_selected()
 
     def _add_submenu(self):
