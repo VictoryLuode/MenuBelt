@@ -27,7 +27,7 @@ from PyQt5.QtWidgets import (
     QTextEdit,
 )
 
-from .config import load_lists, notify_refresh, register_refresh
+from .config import load_lists, notify_refresh, register_refresh, run_script
 
 # Keys that on their own are modifiers, not real shortcuts
 _MODIFIER_KEYS = (
@@ -237,7 +237,7 @@ class ListMenuExtension(Extension):
         return act
 
     def _build_menu_node(self, parent_menu, node):
-        """Recursively add a menu node's commands and submenus to a QMenu."""
+        """Recursively add a menu node's commands, scripts and submenus."""
         for entry in node.get("items", []):
             aid, label = None, ""
             if isinstance(entry, str):
@@ -245,6 +245,12 @@ class ListMenuExtension(Extension):
             elif isinstance(entry, dict):
                 if entry.get("id"):
                     aid, label = entry["id"], entry.get("label", "")
+                elif entry.get("script") is not None:
+                    sact = QAction(entry.get("label", "Script"), parent_menu)
+                    sact.triggered.connect(
+                        lambda _=False, c=entry.get("script", ""): run_script(c))
+                    parent_menu.addAction(sact)
+                    continue
                 elif entry.get("name") is not None:
                     sub = parent_menu.addMenu(entry["name"])
                     self._build_menu_node(sub, entry)

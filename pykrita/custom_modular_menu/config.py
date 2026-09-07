@@ -85,6 +85,9 @@ def _clean_items(items):
         elif isinstance(it, dict):
             if it.get("id"):
                 out.append({"id": it["id"], "label": it.get("label", "") or ""})
+            elif it.get("script") is not None:
+                out.append({"script": it.get("script", ""),
+                            "label": it.get("label", "") or ""})
             elif it.get("name") is not None:
                 out.append({
                     "name": it.get("name", ""),
@@ -118,6 +121,9 @@ def _serialize_items(items):
             aid = it["id"]
             label = it.get("label", "") or ""
             out.append({"id": aid, "label": label} if label else aid)
+        elif it.get("script") is not None:
+            out.append({"script": it.get("script", ""),
+                        "label": it.get("label", "") or ""})
         elif it.get("name") is not None:
             out.append({
                 "name": it.get("name", ""),
@@ -198,6 +204,30 @@ def catalog_actions():
         print(f"[CMM] failed to enumerate actions: {e}")
     out.sort(key=lambda x: x[1].lower())
     return out
+
+
+def build_config_dict(popup_shortcut, lists):
+    """Serialise in-memory lists to a config dict (for export)."""
+    return {"popup_shortcut": popup_shortcut or "", "lists": _serialize_lists(lists)}
+
+
+def parse_config_dict(data):
+    """Parse a config dict into (popup_shortcut, lists)."""
+    popup = data.get("popup_shortcut", "") or ""
+    return popup, _clean_lists(data.get("lists", []))
+
+
+# ---------- Script items ----------
+def run_script(code):
+    """Execute a user-supplied Python snippet in a namespace with Krita access."""
+    if not isinstance(code, str) or not code.strip():
+        return
+    app = Krita.instance()
+    try:
+        exec(code, {"__builtins__": __builtins__,
+                    "Krita": Krita, "krita": app, "app": app})
+    except Exception as e:
+        print(f"[CMM] script error: {e}")
 
 
 # ---------- Refresh notification (reload Tools menu / Docker / shortcuts after editing) ----------

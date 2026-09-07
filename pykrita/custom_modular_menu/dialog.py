@@ -1,9 +1,10 @@
 """Custom Modular Menu (CMM) - multi-list editor dialog.
 
-Supports nested menus: a menu holds commands and/or submenus (arbitrary depth).
-Left = top-level lists (drag to reorder), right = current menu's items with a
-breadcrumb to navigate into submenus.
+Supports nested menus, custom-named commands, and Python script items. Provides
+a live preview pane, shortcut conflict detection, and config export/import.
 """
+
+import json
 
 from krita import Krita
 from PyQt5.QtCore import Qt
@@ -12,6 +13,7 @@ from PyQt5.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QDialog,
+    QFileDialog,
     QGroupBox,
     QHBoxLayout,
     QInputDialog,
@@ -22,30 +24,40 @@ from PyQt5.QtWidgets import (
     QListWidgetItem,
     QMessageBox,
     QPushButton,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
 )
 
-from .config import catalog_actions, load_config, notify_refresh, save_config
+from .config import (
+    build_config_dict,
+    catalog_actions,
+    load_config,
+    notify_refresh,
+    parse_config_dict,
+    save_config,
+)
 
 ROLE_INDEX = Qt.UserRole
 ROLE_TOKEN = Qt.UserRole + 1
 ROLE_TYPE = Qt.UserRole + 2
 TYPE_CMD = "cmd"
 TYPE_MENU = "menu"
+TYPE_SCRIPT = "script"
 
 
 class ListMenuDialog(QDialog):
-    """Multi-menu editor with nested submenu navigation."""
+    """Multi-menu editor with nested submenu navigation + live preview."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Edit Custom Modular Menu")
-        self.setMinimumSize(820, 540)
+        self.setMinimumSize(920, 560)
         self._apply_default_size()
 
         self._catalog = dict(catalog_actions())
+        self._krita_shortcuts = self._collect_krita_shortcuts()
         self.popup_shortcut, self.lists = load_config()
-        # path = reference chain to the current menu node; path[0] is a top-level list
         self.current = 0
         self.path = [self.lists[self.current]] if self.lists else []
         self._loading_sc = False
@@ -54,8 +66,9 @@ class ListMenuDialog(QDialog):
         self._reload_sidebar()
         self._render_current()
         self._update_left_shortcut()
+        self._render_preview()
 
-    # ---------- Dialog size (remembered across sessions) ----------
+    # ---------- Size (remembered) ----------
     def _apply_default_size(self):
         try:
             w = Krita.instance().readSetting("custom_modular_menu", "dialog_width", "")
@@ -67,9 +80,9 @@ class ListMenuDialog(QDialog):
             pass
         try:
             geo = QApplication.primaryScreen().availableGeometry()
-            self.resize(max(880, int(geo.width() * 0.55)), max(540, int(geo.height() * 0.60)))
+            self.resize(max(920, int(geo.width() * 0.6)), max(560, int(geo.height() * 0.65)))
         except Exception:
-            self.resize(920, 580)
+            self.resize(980, 620)
 
     def _persist_size(self):
         try:
@@ -83,17 +96,30 @@ class ListMenuDialog(QDialog):
         self._persist_size()
         super().done(result)
 
+    @staticmethod
+    def _collect_krita_shortcuts():
+        out = set()
+        try:
+            for a in Krita.instance().actions():
+                try:
+                    s = a.shortcut().toString(QKeySequence.PortableText)
+                    if s:
+                        out.add(s)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return out
+
     # ---------- UI ----------
     def _build_ui(self):
         root = QVBoxLayout(self)
         root.setSpacing(10)
 
-        # (whole-menu popup trigger is bound via Krita's Keyboard Shortcuts editor)
-
         body = QHBoxLayout()
         body.setSpacing(12)
 
-        # Left: top-level lists
+        # Left: top-level lists + per-list popup shortcut
         left_box = QGroupBox("Lists")
         left = QVBoxLayout(left_box)
         self.sidebar = QListWidget()
@@ -109,7 +135,6 @@ class ListMenuDialog(QDialog):
             b = QPushButton(label)
             b.clicked.connect(slot)
             left.addWidget(b)
-
         sc_row = QHBoxLayout()
         sc_row.addWidget(QLabel("Popup shortcut:"))
         self.list_sc_edit = QKeySequenceEdit()
@@ -120,18 +145,14 @@ class ListMenuDialog(QDialog):
         sc_clear.clicked.connect(self._clear_list_shortcut)
         sc_row.addWidget(sc_clear)
         left.addLayout(sc_row)
-
-        left_box.setMinimumWidth(190)
+        left_box.setMinimumWidth(200)
         body.addWidget(left_box, 1)
 
-        # Right: current menu
+        # Middle: current menu editing
         right_box = QGroupBox()
         right = QVBoxLayout(right_box)
-
-        # Breadcrumb
         self.crumb_row = QHBoxLayout()
         right.addLayout(self.crumb_row)
-
         self.list_title = QLabel()
         right.addWidget(self.list_title)
 
@@ -145,20 +166,19 @@ class ListMenuDialog(QDialog):
 
         editor = QHBoxLayout()
         editor.setSpacing(8)
-
         avail_col = QVBoxLayout()
         self.avail_list = QListWidget()
         self.avail_list.itemDoubleClicked.connect(lambda _i: self._add_selected())
         avail_col.addWidget(self.avail_list)
         add_btn = QPushButton("Add →")
-        add_btn.setToolTip("Add the selected action to the current menu (or double-click it)")
+        add_btn.setToolTip("Add the selected action (or double-click it)")
         add_btn.clicked.connect(self._add_selected)
         avail_col.addWidget(add_btn)
         editor.addLayout(avail_col, 1)
 
         items_col = QVBoxLayout()
         items_col.addWidget(QLabel(
-            "Current items (drag to reorder, double-click a submenu to enter, cmd to rename):"))
+            "Current items (drag to reorder; enter submenu / rename / edit by double-click):"))
         self.items_list = QListWidget()
         self.items_list.itemDoubleClicked.connect(self._on_item_double_click)
         self.items_list.setDragDropMode(QAbstractItemView.InternalMove)
@@ -168,6 +188,7 @@ class ListMenuDialog(QDialog):
         items_col.addWidget(self.items_list)
         btn_row = QHBoxLayout()
         for label, slot in (("Add Submenu", self._add_submenu),
+                            ("Add Script", self._add_script),
                             ("Rename", self._rename_item),
                             ("Up", self._move_up),
                             ("Down", self._move_down),
@@ -177,13 +198,28 @@ class ListMenuDialog(QDialog):
             btn_row.addWidget(b)
         items_col.addLayout(btn_row)
         editor.addLayout(items_col, 1)
-
         right.addLayout(editor)
         body.addWidget(right_box, 3)
 
+        # Right: live preview
+        preview_box = QGroupBox("Preview")
+        pv = QVBoxLayout(preview_box)
+        self.preview_tree = QTreeWidget()
+        self.preview_tree.setHeaderLabels(["Menu structure"])
+        self.preview_tree.setMinimumWidth(200)
+        pv.addWidget(self.preview_tree)
+        body.addWidget(preview_box, 1)
+
         root.addLayout(body)
 
+        # Bottom: export/import + OK/Cancel
         bottom = QHBoxLayout()
+        im = QPushButton("Import…")
+        im.clicked.connect(self._import_config)
+        bottom.addWidget(im)
+        ex = QPushButton("Export…")
+        ex.clicked.connect(self._export_config)
+        bottom.addWidget(ex)
         bottom.addStretch()
         ok = QPushButton("OK")
         ok.setDefault(True)
@@ -204,9 +240,6 @@ class ListMenuDialog(QDialog):
     def _name(self):
         return self._cur_menu().get("name", "")
 
-    def _cur_shortcut(self):
-        return self._cur_menu().get("shortcut", "")
-
     def _render_path_bar(self):
         while self.crumb_row.count():
             it = self.crumb_row.takeAt(0).widget()
@@ -214,8 +247,7 @@ class ListMenuDialog(QDialog):
                 it.deleteLater()
         for i, node in enumerate(self.path):
             if i > 0:
-                sep = QLabel("▸")
-                self.crumb_row.addWidget(sep)
+                self.crumb_row.addWidget(QLabel("▸"))
             btn = QPushButton(node.get("name", "?"))
             btn.setFlat(True)
             btn.clicked.connect(lambda _=False, d=i: self._go_to_depth(d))
@@ -257,6 +289,7 @@ class ListMenuDialog(QDialog):
             self.lists[:] = new_order
         self.current = max(0, self.sidebar.currentRow())
         self._update_left_shortcut()
+        self._render_preview()
 
     def _new_list(self):
         name, ok = QInputDialog.getText(self, "New List", "List name:")
@@ -268,6 +301,7 @@ class ListMenuDialog(QDialog):
         self._reload_sidebar()
         self._render_current()
         self._update_left_shortcut()
+        self._render_preview()
 
     def _rename_list(self):
         if not self.lists:
@@ -278,6 +312,7 @@ class ListMenuDialog(QDialog):
             self.lists[self.current]["name"] = new_name.strip()
             self._reload_sidebar()
             self._render_path_bar()
+            self._render_preview()
 
     def _delete_list(self):
         if not self.lists:
@@ -291,6 +326,7 @@ class ListMenuDialog(QDialog):
             self._reload_sidebar()
             self._render_current()
             self._update_left_shortcut()
+            self._render_preview()
 
     # ---------- Shortcut ----------
     def _on_list_shortcut_changed(self, seq):
@@ -315,6 +351,19 @@ class ListMenuDialog(QDialog):
         self._loading_sc = False
 
     # ---------- Current menu items ----------
+    @staticmethod
+    def _token_of(it):
+        if isinstance(it, str):
+            return it
+        if isinstance(it, dict):
+            if it.get("id"):
+                return it["id"]
+            if it.get("script") is not None:
+                return "script:" + (it.get("label", "") or "")
+            if it.get("name") is not None:
+                return it["name"]
+        return None
+
     def _render_current(self):
         self.list_title.setText(f"Current list: {self._name()}")
         self._render_path_bar()
@@ -324,33 +373,30 @@ class ListMenuDialog(QDialog):
         items = self._cur_items()
         self.items_list.clear()
         for idx, it in enumerate(items):
+            token = self._token_of(it)
+            typ, text = TYPE_CMD, token or "?"
             if isinstance(it, str):
-                # bare command
                 text = self._catalog.get(it, it)
-                token, typ = it, TYPE_CMD
-            elif isinstance(it, dict) and it.get("id"):
-                aid = it["id"]
-                label = it.get("label", "")
-                text = label or self._catalog.get(aid, aid)
-                token, typ = aid, TYPE_CMD
-            elif isinstance(it, dict) and it.get("name") is not None:
-                text = f"\u25b8 {it['name']}"   # ▸ submenu marker
-                token, typ = it["name"], TYPE_MENU
-            else:
-                continue
+            elif isinstance(it, dict):
+                if it.get("id"):
+                    text = it.get("label", "") or self._catalog.get(it["id"], it["id"])
+                elif it.get("script") is not None:
+                    typ, text = TYPE_SCRIPT, f"[script] {it.get('label', 'Script')}"
+                elif it.get("name") is not None:
+                    typ, text = TYPE_MENU, f"\u25b8 {it['name']}"
             entry = QListWidgetItem(text)
             entry.setData(ROLE_INDEX, idx)
             entry.setData(ROLE_TOKEN, token)
             entry.setData(ROLE_TYPE, typ)
             entry.setToolTip(f"{text}  [{token}]")
             font = QFont()
-            font.setItalic(typ == TYPE_CMD and isinstance(it, dict) and bool(it.get("label")))
+            font.setItalic(typ != TYPE_MENU)
             entry.setFont(font)
             self.items_list.addItem(entry)
         self._reload_available()
+        self._render_preview()
 
     def _existing_cmd_ids(self):
-        """Collect the action ids of commands already in the current menu."""
         out = set()
         for it in self._cur_items():
             if isinstance(it, str):
@@ -374,30 +420,19 @@ class ListMenuDialog(QDialog):
 
     def _sync_items_order(self, *_):
         items = self._cur_items()
-
-        def token_of(it):
-            if isinstance(it, str):
-                return it
-            if isinstance(it, dict):
-                if it.get("id"):
-                    return it["id"]
-                if it.get("name") is not None:
-                    return it["name"]
-            return None
-
-        by_token = {}
+        by_tok = {}
         for it in items:
-            t = token_of(it)
-            if t is not None and t not in by_token:
-                by_token[t] = it
+            t = self._token_of(it)
+            if t is not None and t not in by_tok:
+                by_tok[t] = it
         new_order = []
         for i in range(self.items_list.count()):
-            entry = self.items_list.item(i)
-            t = entry.data(ROLE_TOKEN)
-            if t in by_token:
-                new_order.append(by_token[t])
+            t = self.items_list.item(i).data(ROLE_TOKEN)
+            if t in by_tok:
+                new_order.append(by_tok[t])
         if len(new_order) == len(items):
             items[:] = new_order
+        self._render_preview()
 
     def _on_item_double_click(self, *_):
         entry = self.items_list.currentItem()
@@ -435,6 +470,18 @@ class ListMenuDialog(QDialog):
         self._cur_items().append({"name": name.strip(), "shortcut": "", "items": []})
         self._render_items()
 
+    def _add_script(self):
+        if not self.path:
+            return
+        name, ok = QInputDialog.getText(self, "Add Script", "Script name:")
+        if not ok or not name.strip():
+            return
+        code, ok2 = QInputDialog.getMultiLineText(
+            self, "Add Script", "Python code (runs when clicked; Krita available as 'krita'/'app'):")
+        if ok2 and code.strip():
+            self._cur_items().append({"script": code, "label": name.strip()})
+            self._render_items()
+
     def _remove_selected(self):
         row = self.items_list.currentRow()
         if row < 0 or not self._cur_items():
@@ -467,13 +514,19 @@ class ListMenuDialog(QDialog):
             return
         cur = items[row]
         if isinstance(cur, dict) and cur.get("name") is not None:
-            # submenu: rename the submenu
             new_name, ok = QInputDialog.getText(
                 self, "Rename Submenu", "Submenu name:", text=cur["name"])
             if ok and new_name.strip():
                 cur["name"] = new_name.strip()
                 self._render_items()
                 self._render_path_bar()
+            return
+        if isinstance(cur, dict) and cur.get("script") is not None:
+            new_label, ok = QInputDialog.getText(
+                self, "Rename Script", "Script name:", text=cur.get("label", ""))
+            if ok:
+                cur["label"] = new_label.strip()
+                self._render_items()
             return
         # command: set custom label
         default = (cur.get("label", "") if isinstance(cur, dict) else "") \
@@ -490,8 +543,83 @@ class ListMenuDialog(QDialog):
                 cur["label"] = new_label.strip()
             self._render_items()
 
+    # ---------- Live preview ----------
+    def _render_preview(self):
+        self.preview_tree.clear()
+        for lst in self.lists:
+            top = QTreeWidgetItem([lst["name"]])
+            self.preview_tree.addTopLevelItem(top)
+            self._preview_fill(top, lst)
+        self.preview_tree.expandAll()
+
+    def _preview_fill(self, parent_item, node):
+        for entry in node.get("items", []):
+            if isinstance(entry, str):
+                parent_item.addChild(QTreeWidgetItem([self._catalog.get(entry, entry)]))
+            elif isinstance(entry, dict):
+                if entry.get("id"):
+                    text = entry.get("label", "") or self._catalog.get(entry["id"], entry["id"])
+                    parent_item.addChild(QTreeWidgetItem([text]))
+                elif entry.get("script") is not None:
+                    parent_item.addChild(QTreeWidgetItem(
+                        ["⚙ " + (entry.get("label", "Script") or "Script")]))
+                elif entry.get("name") is not None:
+                    child = QTreeWidgetItem([entry["name"]])
+                    parent_item.addChild(child)
+                    self._preview_fill(child, entry)
+
+    # ---------- Export / import ----------
+    def _export_config(self):
+        path, _ = QFileDialog.getSaveFileName(self, "Export Config", "", "CMM Config (*.json)")
+        if not path:
+            return
+        data = build_config_dict(self.popup_shortcut, self.lists)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            QMessageBox.information(self, "Exported", f"Config exported to\n{path}")
+        except Exception as e:
+            QMessageBox.warning(self, "Export failed", str(e))
+
+    def _import_config(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Import Config", "", "CMM Config (*.json)")
+        if not path:
+            return
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+            self.popup_shortcut, self.lists = parse_config_dict(data)
+        except Exception as e:
+            QMessageBox.warning(self, "Import failed", str(e))
+            return
+        self.current = 0
+        self.path = [self.lists[self.current]] if self.lists else []
+        self._reload_sidebar()
+        self._render_current()
+        self._update_left_shortcut()
+        self._render_preview()
+
+    # ---------- Conflict check ----------
+    def _check_conflicts(self):
+        used = {}
+        for lst in self.lists:
+            key = lst.get("shortcut", "")
+            if not key:
+                continue
+            if key in used:
+                return (f"Lists \u201c{used[key]}\u201d and \u201c{lst['name']}\u201d both "
+                        f"use shortcut \u201c{key}\u201d.")
+            used[key] = lst["name"]
+            if key in self._krita_shortcuts:
+                return (f"Shortcut \u201c{key}\u201d for list \u201c{lst['name']}\u201d "
+                        f"is already used by a Krita action.")
+        return None
+
     # ---------- Save ----------
     def accept(self):
+        conflict = self._check_conflicts()
+        if conflict:
+            QMessageBox.warning(self, "Shortcut conflict", conflict)
         save_config(self.popup_shortcut, self.lists)
         notify_refresh()
         super().accept()

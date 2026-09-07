@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from .config import load_lists, notify_refresh, register_refresh
+from .config import load_lists, notify_refresh, register_refresh, run_script
 
 
 class ListMenuDocker(DockWidget):
@@ -88,7 +88,7 @@ class ListMenuDocker(DockWidget):
         return btn
 
     def _populate(self, layout, node, indent=0):
-        """Recursively render a menu node's commands and submenus in the docker."""
+        """Recursively render a menu node's commands, scripts and submenus."""
         for entry in node.get("items", []):
             if isinstance(entry, str):
                 layout.addWidget(self._make_button(entry, "", indent))
@@ -96,6 +96,15 @@ class ListMenuDocker(DockWidget):
                 if entry.get("id"):
                     layout.addWidget(self._make_button(
                         entry["id"], entry.get("label", ""), indent))
+                elif entry.get("script") is not None:
+                    btn = QPushButton(entry.get("label", "Script") or "Script")
+                    btn.setToolTip("Python script item")
+                    if indent:
+                        btn.setContentsMargins(indent * 14, 0, 0, 0)
+                    btn.setStyleSheet("QPushButton { text-align: left; padding: 3px 6px; }")
+                    btn.clicked.connect(
+                        lambda _=False, c=entry.get("script", ""): run_script(c))
+                    layout.addWidget(btn)
                 elif entry.get("name") is not None:
                     sub = QLabel(entry["name"])
                     sub.setStyleSheet("font-weight: bold; color: #aaa;")
