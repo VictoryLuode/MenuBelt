@@ -25,6 +25,7 @@ from PyQt5.QtWidgets import (
     QListWidgetItem,
     QMessageBox,
     QPushButton,
+    QTextEdit,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -76,7 +77,7 @@ def _enum_actions(dlg, needle):
             continue
         if action_id in existing:
             continue
-        yield (action_id, f"{text}   [{action_id}]")
+        yield (action_id, text)
 
 
 def _add_action(dlg, payload):
@@ -94,7 +95,7 @@ def _enum_blend(dlg, needle):
             continue
         if oid in existing:
             continue
-        yield (oid, f"\u25c6 {label}   [{oid}]")
+        yield (oid, label)
 
 
 def _add_blend(dlg, payload):
@@ -271,6 +272,13 @@ class ListMenuDialog(QDialog):
         add_btn.setToolTip("Add the selected item (or double-click it)")
         add_btn.clicked.connect(self._add_selected)
         av.addWidget(add_btn)
+        self.detail_box = QTextEdit()
+        self.detail_box.setReadOnly(True)
+        self.detail_box.setMinimumHeight(96)
+        self.detail_box.setPlaceholderText("Select an item to see its API details")
+        self.detail_box.setProperty("class", "detailbox")
+        av.addWidget(self.detail_box)
+        self.avail_list.itemSelectionChanged.connect(self._on_avail_selection_changed)
         body.addWidget(avail_box, 2)
 
         # Preview (right): only the current menu
@@ -479,6 +487,45 @@ class ListMenuDialog(QDialog):
             elif isinstance(it, dict) and it.get("id"):
                 out.add(it["id"])
         return out
+
+    def _on_avail_selection_changed(self):
+        self._show_item_details(self.avail_list.currentItem())
+
+    def _show_item_details(self, item):
+        """Fill the bottom detail box with API info for the selected add item."""
+        if item is None:
+            self.detail_box.setPlainText("")
+            return
+        src = self._current_source()
+        payload = item.data(ROLE_TOKEN)
+        if src and src.key == "actions" and payload:
+            name = item.text()
+            cat = self._action_categories.get(payload, "other")
+            shortcut = ""
+            try:
+                act = Krita.instance().action(payload)
+                if act is not None:
+                    shortcut = act.shortcut().toString() or ""
+            except Exception:
+                pass
+            lines = [
+                "Krita action: %s" % name,
+                "id: %s" % payload,
+                "category: %s" % cat,
+            ]
+            if shortcut:
+                lines.append("shortcut: %s" % shortcut)
+            lines.append("API: Krita.instance().action('%s').trigger()" % payload)
+            self.detail_box.setPlainText("\n".join(lines))
+        elif item.data(ROLE_TYPE) == TYPE_BLEND and payload:
+            label = dict(LAYER_BLEND_MODES).get(payload, payload)
+            self.detail_box.setPlainText(
+                "Layer blend mode: %s\n"
+                "id: %s\n"
+                "API: Krita.instance().activeDocument().activeNode()\n"
+                "     .setBlendingMode('%s')" % (label, payload, payload))
+        else:
+            self.detail_box.setPlainText("")
 
     def _current_source(self):
         idx = self.add_type.currentIndex()
