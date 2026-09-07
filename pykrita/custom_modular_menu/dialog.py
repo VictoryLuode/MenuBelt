@@ -241,7 +241,7 @@ class ListMenuDialog(QDialog):
             btn.setFlat(True)
             btn.clicked.connect(lambda _=False, d=i: self._go_to_depth(d))
             self.crumb_row.addWidget(btn)
-        self.crumb_row.addStretch()
+        # no trailing stretch here: header_row's stretch gives the adaptive gap before Shortcut
 
     def _go_to_depth(self, depth):
         if 0 <= depth < len(self.path):
