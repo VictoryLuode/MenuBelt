@@ -1,10 +1,13 @@
 """Custom Modular Menu (CMM) - multi-list editor dialog:
-manage list names, actions/order inside each list, and per-list popup shortcuts."""
+manage list names, actions/order inside each list, per-list popup shortcuts,
+and per-item custom names."""
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QKeySequence
+from PyQt5.QtGui import QFont, QKeySequence
 from PyQt5.QtWidgets import (
+    QAbstractItemView,
     QDialog,
+    QGroupBox,
     QHBoxLayout,
     QInputDialog,
     QKeySequenceEdit,
@@ -26,7 +29,7 @@ class ListMenuDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Edit Custom Modular Menu")
-        self.resize(880, 560)
+        self.resize(920, 580)
 
         self._catalog = dict(catalog_actions())
         self.popup_shortcut, self.lists = load_config()  # (str, [{name, shortcut, items}])
@@ -40,25 +43,25 @@ class ListMenuDialog(QDialog):
     # ---------- UI ----------
     def _build_ui(self):
         root = QVBoxLayout(self)
-        root.setSpacing(8)
+        root.setSpacing(10)
 
-        # Top: whole-menu popup shortcut
-        popup_row = QHBoxLayout()
-        popup_row.addWidget(QLabel("Menu popup shortcut (whole list menu):"))
+        # Whole-menu popup shortcut
+        popup_box = QGroupBox("Menu popup shortcut (whole list menu)")
+        popup_row = QHBoxLayout(popup_box)
         self.popup_edit = QKeySequenceEdit(self.popup_shortcut)
         self.popup_edit.setToolTip("Press a key combination here to bind the whole menu popup.")
         popup_row.addWidget(self.popup_edit, 1)
         popup_clear = QPushButton("Clear")
         popup_clear.clicked.connect(lambda: self.popup_edit.setKeySequence(QKeySequence("")))
         popup_row.addWidget(popup_clear)
-        root.addLayout(popup_row)
+        root.addWidget(popup_box)
 
         body = QHBoxLayout()
         body.setSpacing(12)
 
         # Left: list management
-        left = QVBoxLayout()
-        left.addWidget(QLabel("Lists:"))
+        left_box = QGroupBox("Lists")
+        left = QVBoxLayout(left_box)
         self.sidebar = QListWidget()
         self.sidebar.currentRowChanged.connect(self._on_switch_list)
         left.addWidget(self.sidebar)
@@ -68,10 +71,12 @@ class ListMenuDialog(QDialog):
             b = QPushButton(label)
             b.clicked.connect(slot)
             left.addWidget(b)
-        body.addLayout(left, 1)
+        left_box.setMinimumWidth(180)
+        body.addWidget(left_box, 1)
 
-        # Right: selected list items
-        right = QVBoxLayout()
+        # Right: selected list
+        right_box = QGroupBox()
+        right = QVBoxLayout(right_box)
         self.list_title = QLabel()
         right.addWidget(self.list_title)
 
@@ -82,7 +87,7 @@ class ListMenuDialog(QDialog):
         self.list_sc_edit.keySequenceChanged.connect(self._on_list_shortcut_changed)
         sc_row.addWidget(self.list_sc_edit, 1)
         sc_clear = QPushButton("Clear")
-        sc_clear.clicked.connect(lambda: self._clear_list_shortcut())
+        sc_clear.clicked.connect(self._clear_list_shortcut)
         sc_row.addWidget(sc_clear)
         right.addLayout(sc_row)
 
@@ -102,14 +107,21 @@ class ListMenuDialog(QDialog):
         self.avail_list.itemDoubleClicked.connect(lambda _i: self._add_selected())
         avail_col.addWidget(self.avail_list)
         add_btn = QPushButton("Add →")
+        add_btn.setToolTip("Add the selected action to the current list (or double-click it)")
         add_btn.clicked.connect(self._add_selected)
         avail_col.addWidget(add_btn)
         editor.addLayout(avail_col, 1)
 
         items_col = QVBoxLayout()
-        items_col.addWidget(QLabel("Current items (order = menu order; double-click to rename):"))
+        items_col.addWidget(QLabel(
+            "Current items (drag to reorder, double-click to rename):"))
         self.items_list = QListWidget()
         self.items_list.itemDoubleClicked.connect(lambda _i: self._rename_item())
+        # Drag-and-drop reorder
+        self.items_list.setDragDropMode(QAbstractItemView.InternalMove)
+        self.items_list.setDefaultDropAction(Qt.MoveAction)
+        self.items_list.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.items_list.model().rowsMoved.connect(self._sync_items_order)
         items_col.addWidget(self.items_list)
         btn_row = QHBoxLayout()
         for label, slot in (("Rename", self._rename_item),
@@ -121,14 +133,16 @@ class ListMenuDialog(QDialog):
             btn_row.addWidget(b)
         items_col.addLayout(btn_row)
         editor.addLayout(items_col, 1)
+
         right.addLayout(editor)
-        body.addLayout(right, 3)
+        body.addWidget(right_box, 3)
 
         root.addLayout(body)
 
         bottom = QHBoxLayout()
         bottom.addStretch()
         ok = QPushButton("OK")
+        ok.setDefault(True)
         ok.clicked.connect(self.accept)
         cancel = QPushButton("Cancel")
         cancel.clicked.connect(self.reject)
@@ -213,6 +227,19 @@ class ListMenuDialog(QDialog):
     def _cur_items(self):
         return self.lists[self.current]["items"] if self.lists else []
 
+    def _sync_items_order(self, *_):
+        """After a drag reorder, sync the config list order to the widget order."""
+        items = self._cur_items()
+        by_id = {it["id"]: it for it in items}
+        new_order = []
+        for i in range(self.items_list.count()):
+            entry = self.items_list.item(i)
+            aid = entry.data(Qt.UserRole + 1)
+            if aid in by_id:
+                new_order.append(by_id[aid])
+        if new_order != items:
+            items[:] = new_order
+
     def _render_items(self):
         self.items_list.clear()
         items = self._cur_items()
@@ -224,6 +251,9 @@ class ListMenuDialog(QDialog):
             entry.setData(Qt.UserRole, idx)
             entry.setData(Qt.UserRole + 1, aid)
             entry.setToolTip(f"{text}  [{aid}]")
+            font = QFont()
+            font.setItalic(bool(label))  # custom-named items shown italic
+            entry.setFont(font)
             self.items_list.addItem(entry)
         self._reload_available()
 
