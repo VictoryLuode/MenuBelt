@@ -8,7 +8,7 @@ import json
 
 from krita import Krita
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont, QKeySequence
+from PyQt5.QtGui import QBrush, QColor, QFont, QKeySequence
 from PyQt5.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -194,6 +194,7 @@ class ListMenuDialog(QDialog):
         left = QVBoxLayout(left_box)
         self.sidebar = QListWidget()
         self.sidebar.currentRowChanged.connect(self._on_switch_list)
+        self.sidebar.itemChanged.connect(self._on_sidebar_item_changed)
         self.sidebar.setDragDropMode(QAbstractItemView.InternalMove)
         self.sidebar.setDefaultDropAction(Qt.MoveAction)
         self.sidebar.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -338,10 +339,35 @@ class ListMenuDialog(QDialog):
         for lst in self.lists:
             item = QListWidgetItem(lst["name"])
             item.setData(ROLE_INDEX, lst["name"])
+            active = bool(lst.get("active", True))
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Checked if active else Qt.Unchecked)
             self.sidebar.addItem(item)
+            self._style_sidebar_item(item, active)
         if 0 <= self.current < self.sidebar.count():
             self.sidebar.setCurrentRow(self.current)
         self.sidebar.blockSignals(False)
+
+    def _style_sidebar_item(self, item, active):
+        font = QFont()
+        font.setItalic(not active)
+        item.setFont(font)
+        item.setForeground(QBrush(QColor(150, 150, 150)) if not active else QBrush())
+
+    def _on_sidebar_item_changed(self, item):
+        name = item.data(ROLE_INDEX)
+        if not name:
+            return
+        active = (item.checkState() == Qt.Checked)
+        lst = next((l for l in self.lists if l.get("name") == name), None)
+        if lst is None:
+            return
+        if bool(lst.get("active", True)) == active:
+            return  # not a check-state change (e.g. reorder also fires itemChanged)
+        lst["active"] = active
+        self._style_sidebar_item(item, active)
+        save_config(self.popup_shortcut, self.lists)
+        notify_refresh()
 
     def _on_switch_list(self, row):
         if 0 <= row < len(self.lists):

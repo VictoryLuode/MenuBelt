@@ -118,6 +118,8 @@ class ListMenuExtension(Extension):
             menu = entry["menu"]
             menu.clear()
             for lst in load_lists():
+                if not lst.get("active", True):
+                    continue
                 sub = menu.addMenu(lst["name"])
                 self._build_menu_node(sub, lst)
             menu.addSeparator()
@@ -132,6 +134,8 @@ class ListMenuExtension(Extension):
         # are registered here. The app-level event filter stays installed.
         self._shortcut_map = {}
         for i, lst in enumerate(load_lists()):
+            if not lst.get("active", True):
+                continue
             key = lst.get("shortcut", "")
             if key:
                 self._shortcut_map[key] = (lambda i=i: self.pop_list(i))
@@ -177,6 +181,8 @@ class ListMenuExtension(Extension):
             lst = load_lists()[index]
         except (IndexError, TypeError):
             return
+        if not lst.get("active", True):
+            return
         parent = self._active_window_widget()
         menu = QMenu(parent)
         self._build_menu_node(menu, lst)
@@ -197,6 +203,8 @@ class ListMenuExtension(Extension):
         """Build a fresh cursor popup menu (lists -> items + edit footer)."""
         menu = QMenu(parent)
         for lst in load_lists():
+            if not lst.get("active", True):
+                continue
             sub = menu.addMenu(lst["name"])
             self._build_menu_node(sub, lst)
         menu.addSeparator()

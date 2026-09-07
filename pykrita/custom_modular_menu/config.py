@@ -144,6 +144,7 @@ def _clean_lists(lists):
         clean.append({
             "name": lst["name"],
             "shortcut": lst.get("shortcut", "") or "",
+            "active": bool(lst.get("active", True)),
             "items": _clean_items(lst.get("items", [])),
         })
     return clean
@@ -182,6 +183,7 @@ def _serialize_lists(lists):
         out.append({
             "name": lst.get("name", ""),
             "shortcut": lst.get("shortcut", "") or "",
+            "active": bool(lst.get("active", True)),
             "items": _serialize_items(lst.get("items", [])),
         })
     return out
