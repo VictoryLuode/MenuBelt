@@ -491,7 +491,7 @@ class ListMenuDialog(QDialog):
         src = self._current_source()
         payload = item.data(0, ROLE_TOKEN)
         if src and src.key == "actions" and payload:
-            name = item.text()
+            name = item.text(0)
             cat = self._action_categories.get(payload, "other")
             shortcut = ""
             try:
