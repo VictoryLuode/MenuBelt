@@ -1,6 +1,9 @@
-"""Custom Modular Menu (CMM) - multi-list editor dialog:
-manage list names, actions/order inside each list, per-list popup shortcuts,
-and per-item custom names."""
+"""Custom Modular Menu (CMM) - multi-list editor dialog.
+
+Supports nested menus: a menu holds commands and/or submenus (arbitrary depth).
+Left = top-level lists (drag to reorder), right = current menu's items with a
+breadcrumb to navigate into submenus.
+"""
 
 from krita import Krita
 from PyQt5.QtCore import Qt
@@ -24,9 +27,15 @@ from PyQt5.QtWidgets import (
 
 from .config import catalog_actions, load_config, notify_refresh, save_config
 
+ROLE_INDEX = Qt.UserRole
+ROLE_TOKEN = Qt.UserRole + 1
+ROLE_TYPE = Qt.UserRole + 2
+TYPE_CMD = "cmd"
+TYPE_MENU = "menu"
+
 
 class ListMenuDialog(QDialog):
-    """Multi-list editor. Left = list management, right = actions/order + shortcut."""
+    """Multi-menu editor with nested submenu navigation."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -35,17 +44,18 @@ class ListMenuDialog(QDialog):
         self._apply_default_size()
 
         self._catalog = dict(catalog_actions())
-        self.popup_shortcut, self.lists = load_config()  # (str, [{name, shortcut, items}])
+        self.popup_shortcut, self.lists = load_config()
+        # path = reference chain to the current menu node; path[0] is a top-level list
         self.current = 0
+        self.path = [self.lists[self.current]] if self.lists else []
         self._loading_sc = False
 
         self._build_ui()
         self._reload_sidebar()
-        self._render_items()
+        self._render_current()
 
     # ---------- Dialog size (remembered across sessions) ----------
     def _apply_default_size(self):
-        """Open big enough by default; restore the last-used size if any."""
         try:
             w = Krita.instance().readSetting("custom_modular_menu", "dialog_width", "")
             h = Krita.instance().readSetting("custom_modular_menu", "dialog_height", "")
@@ -54,7 +64,6 @@ class ListMenuDialog(QDialog):
                 return
         except Exception:
             pass
-        # Sensible default based on the available screen
         try:
             geo = QApplication.primaryScreen().availableGeometry()
             self.resize(max(880, int(geo.width() * 0.55)), max(540, int(geo.height() * 0.60)))
@@ -70,7 +79,6 @@ class ListMenuDialog(QDialog):
             pass
 
     def done(self, result):
-        """Save the dialog size on any close (OK / Cancel / Esc / X)."""
         self._persist_size()
         super().done(result)
 
@@ -79,7 +87,6 @@ class ListMenuDialog(QDialog):
         root = QVBoxLayout(self)
         root.setSpacing(10)
 
-        # Whole-menu popup shortcut
         popup_box = QGroupBox("Menu popup shortcut (whole list menu)")
         popup_row = QHBoxLayout(popup_box)
         self.popup_edit = QKeySequenceEdit(self.popup_shortcut)
@@ -93,12 +100,11 @@ class ListMenuDialog(QDialog):
         body = QHBoxLayout()
         body.setSpacing(12)
 
-        # Left: list management
+        # Left: top-level lists
         left_box = QGroupBox("Lists")
         left = QVBoxLayout(left_box)
         self.sidebar = QListWidget()
         self.sidebar.currentRowChanged.connect(self._on_switch_list)
-        # Drag-and-drop reorder
         self.sidebar.setDragDropMode(QAbstractItemView.InternalMove)
         self.sidebar.setDefaultDropAction(Qt.MoveAction)
         self.sidebar.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -110,19 +116,24 @@ class ListMenuDialog(QDialog):
             b = QPushButton(label)
             b.clicked.connect(slot)
             left.addWidget(b)
-        left_box.setMinimumWidth(180)
+        left_box.setMinimumWidth(190)
         body.addWidget(left_box, 1)
 
-        # Right: selected list
+        # Right: current menu
         right_box = QGroupBox()
         right = QVBoxLayout(right_box)
+
+        # Breadcrumb
+        self.crumb_row = QHBoxLayout()
+        right.addLayout(self.crumb_row)
+
         self.list_title = QLabel()
         right.addWidget(self.list_title)
 
         sc_row = QHBoxLayout()
         sc_row.addWidget(QLabel("Popup shortcut:"))
         self.list_sc_edit = QKeySequenceEdit()
-        self.list_sc_edit.setToolTip("Press a key combination to pop this list at the cursor.")
+        self.list_sc_edit.setToolTip("Press a key combination to pop this menu at the cursor.")
         self.list_sc_edit.keySequenceChanged.connect(self._on_list_shortcut_changed)
         sc_row.addWidget(self.list_sc_edit, 1)
         sc_clear = QPushButton("Clear")
@@ -146,24 +157,24 @@ class ListMenuDialog(QDialog):
         self.avail_list.itemDoubleClicked.connect(lambda _i: self._add_selected())
         avail_col.addWidget(self.avail_list)
         add_btn = QPushButton("Add →")
-        add_btn.setToolTip("Add the selected action to the current list (or double-click it)")
+        add_btn.setToolTip("Add the selected action to the current menu (or double-click it)")
         add_btn.clicked.connect(self._add_selected)
         avail_col.addWidget(add_btn)
         editor.addLayout(avail_col, 1)
 
         items_col = QVBoxLayout()
         items_col.addWidget(QLabel(
-            "Current items (drag to reorder, double-click to rename):"))
+            "Current items (drag to reorder, double-click a submenu to enter, cmd to rename):"))
         self.items_list = QListWidget()
-        self.items_list.itemDoubleClicked.connect(lambda _i: self._rename_item())
-        # Drag-and-drop reorder
+        self.items_list.itemDoubleClicked.connect(self._on_item_double_click)
         self.items_list.setDragDropMode(QAbstractItemView.InternalMove)
         self.items_list.setDefaultDropAction(Qt.MoveAction)
         self.items_list.setSelectionMode(QAbstractItemView.SingleSelection)
         self.items_list.model().rowsMoved.connect(self._sync_items_order)
         items_col.addWidget(self.items_list)
         btn_row = QHBoxLayout()
-        for label, slot in (("Rename", self._rename_item),
+        for label, slot in (("Add Submenu", self._add_submenu),
+                            ("Rename", self._rename_item),
                             ("Up", self._move_up),
                             ("Down", self._move_down),
                             ("Remove", self._remove_selected)):
@@ -189,52 +200,67 @@ class ListMenuDialog(QDialog):
         bottom.addWidget(cancel)
         root.addLayout(bottom)
 
-    # ---------- List management ----------
+    # ---------- Current menu / path ----------
+    def _cur_menu(self):
+        return self.path[-1] if self.path else {"name": "", "shortcut": "", "items": []}
+
+    def _cur_items(self):
+        return self._cur_menu().get("items", [])
+
+    def _name(self):
+        return self._cur_menu().get("name", "")
+
+    def _cur_shortcut(self):
+        return self._cur_menu().get("shortcut", "")
+
+    def _render_path_bar(self):
+        while self.crumb_row.count():
+            it = self.crumb_row.takeAt(0).widget()
+            if it is not None:
+                it.deleteLater()
+        for i, node in enumerate(self.path):
+            if i > 0:
+                sep = QLabel("▸")
+                self.crumb_row.addWidget(sep)
+            btn = QPushButton(node.get("name", "?"))
+            btn.setFlat(True)
+            btn.clicked.connect(lambda _=False, d=i: self._go_to_depth(d))
+            self.crumb_row.addWidget(btn)
+        self.crumb_row.addStretch()
+
+    def _go_to_depth(self, depth):
+        if 0 <= depth < len(self.path):
+            self.path = self.path[: depth + 1]
+            self._render_current()
+
+    # ---------- Sidebar / list management ----------
     def _reload_sidebar(self):
         self.sidebar.blockSignals(True)
         self.sidebar.clear()
         for lst in self.lists:
             item = QListWidgetItem(lst["name"])
-            item.setData(Qt.UserRole, lst["name"])
+            item.setData(ROLE_INDEX, lst["name"])
             self.sidebar.addItem(item)
         if 0 <= self.current < self.sidebar.count():
             self.sidebar.setCurrentRow(self.current)
         self.sidebar.blockSignals(False)
-        self._update_labels()
 
     def _on_switch_list(self, row):
         if 0 <= row < len(self.lists):
             self.current = row
-            self._render_items()
-            self._update_labels()
+            self.path = [self.lists[row]]
+            self._render_current()
 
     def _sync_lists_order(self, *_):
-        """After a drag reorder of the sidebar, reorder the lists to match."""
         by_name = {lst["name"]: lst for lst in self.lists}
         new_order = []
         for i in range(self.sidebar.count()):
-            name = self.sidebar.item(i).data(Qt.UserRole)
+            name = self.sidebar.item(i).data(ROLE_INDEX)
             if name in by_name:
                 new_order.append(by_name[name])
         if len(new_order) == len(self.lists):
             self.lists[:] = new_order
         self.current = max(0, self.sidebar.currentRow())
-        if 0 <= self.current < len(self.lists):
-            self._render_items()
-            self._update_labels()
-
-    def _update_labels(self):
-        self.list_title.setText(f"Current list: {self._name()}")
-        # reflect the selected list's shortcut into the key editor (guarded)
-        self._loading_sc = True
-        self.list_sc_edit.setKeySequence(self._cur_shortcut())
-        self._loading_sc = False
-
-    def _name(self):
-        return self.lists[self.current]["name"] if self.lists else ""
-
-    def _cur_shortcut(self):
-        return self.lists[self.current].get("shortcut", "") if self.lists else ""
 
     def _new_list(self):
         name, ok = QInputDialog.getText(self, "New List", "List name:")
@@ -242,71 +268,80 @@ class ListMenuDialog(QDialog):
             return
         self.lists.append({"name": name.strip(), "shortcut": "", "items": []})
         self.current = len(self.lists) - 1
+        self.path = [self.lists[self.current]]
         self._reload_sidebar()
-        self._render_items()
+        self._render_current()
 
     def _rename_list(self):
         if not self.lists:
             return
         new_name, ok = QInputDialog.getText(
-            self, "Rename List", "New name:", text=self._name())
+            self, "Rename List", "New name:", text=self.lists[self.current]["name"])
         if ok and new_name.strip():
             self.lists[self.current]["name"] = new_name.strip()
             self._reload_sidebar()
+            self._render_path_bar()
 
     def _delete_list(self):
         if not self.lists:
             return
         if QMessageBox.question(
-                self, "Delete List", f"Delete the list \u201c{self._name()}\u201d?") == QMessageBox.Yes:
+                self, "Delete List",
+                f"Delete the list \u201c{self.lists[self.current]['name']}\u201d?") == QMessageBox.Yes:
             self.lists.pop(self.current)
             self.current = max(0, min(self.current, len(self.lists) - 1))
+            self.path = [self.lists[self.current]] if self.lists else []
             self._reload_sidebar()
-            self._render_items()
+            self._render_current()
 
+    # ---------- Shortcut ----------
     def _on_list_shortcut_changed(self, seq):
-        if self._loading_sc or not self.lists:
+        if self._loading_sc or not self.path:
             return
-        self.lists[self.current]["shortcut"] = seq.toString(QKeySequence.PortableText)
+        self._cur_menu()["shortcut"] = seq.toString(QKeySequence.PortableText)
 
     def _clear_list_shortcut(self):
-        if not self.lists:
+        if not self.path:
             return
-        self.lists[self.current]["shortcut"] = ""
+        self._cur_menu()["shortcut"] = ""
         self._loading_sc = True
         self.list_sc_edit.setKeySequence(QKeySequence(""))
         self._loading_sc = False
 
-    # ---------- Selected list items ----------
-    def _cur_items(self):
-        return self.lists[self.current]["items"] if self.lists else []
-
-    def _sync_items_order(self, *_):
-        """After a drag reorder, sync the config list order to the widget order."""
-        items = self._cur_items()
-        by_id = {it["id"]: it for it in items}
-        new_order = []
-        for i in range(self.items_list.count()):
-            entry = self.items_list.item(i)
-            aid = entry.data(Qt.UserRole + 1)
-            if aid in by_id:
-                new_order.append(by_id[aid])
-        if new_order != items:
-            items[:] = new_order
+    # ---------- Current menu items ----------
+    def _render_current(self):
+        self.list_title.setText(f"Current list: {self._name()}")
+        self._loading_sc = True
+        self.list_sc_edit.setKeySequence(self._cur_shortcut())
+        self._loading_sc = False
+        self._render_path_bar()
+        self._render_items()
 
     def _render_items(self):
-        self.items_list.clear()
         items = self._cur_items()
+        self.items_list.clear()
         for idx, it in enumerate(items):
-            aid = it["id"]
-            label = it.get("label", "")
-            text = label or self._catalog.get(aid, aid)
+            if isinstance(it, str):
+                # bare command
+                text = self._catalog.get(it, it)
+                token, typ = it, TYPE_CMD
+            elif isinstance(it, dict) and it.get("id"):
+                aid = it["id"]
+                label = it.get("label", "")
+                text = label or self._catalog.get(aid, aid)
+                token, typ = aid, TYPE_CMD
+            elif isinstance(it, dict) and it.get("name") is not None:
+                text = f"\u25b8 {it['name']}"   # ▸ submenu marker
+                token, typ = it["name"], TYPE_MENU
+            else:
+                continue
             entry = QListWidgetItem(text)
-            entry.setData(Qt.UserRole, idx)
-            entry.setData(Qt.UserRole + 1, aid)
-            entry.setToolTip(f"{text}  [{aid}]")
+            entry.setData(ROLE_INDEX, idx)
+            entry.setData(ROLE_TOKEN, token)
+            entry.setData(ROLE_TYPE, typ)
+            entry.setToolTip(f"{text}  [{token}]")
             font = QFont()
-            font.setItalic(bool(label))  # custom-named items shown italic
+            font.setItalic(typ == TYPE_CMD and isinstance(it, dict) and bool(it.get("label")))
             entry.setFont(font)
             self.items_list.addItem(entry)
         self._reload_available()
@@ -314,29 +349,85 @@ class ListMenuDialog(QDialog):
     def _reload_available(self):
         self.avail_list.clear()
         needle = self.search_box.text().strip().lower()
-        existing = {it["id"] for it in self._cur_items()}
+        existing = {it["id"] if isinstance(it, dict) and it.get("id") else it
+                    for it in self._cur_items() if isinstance(it, (str, dict))}
         for action_id, text in self._catalog.items():
             if needle and needle not in text.lower() and needle not in action_id.lower():
                 continue
             if action_id in existing:
-                continue  # hide already-added actions to avoid duplicates
+                continue
             entry = QListWidgetItem(f"{text}   [{action_id}]")
-            entry.setData(Qt.UserRole, action_id)
+            entry.setData(ROLE_TOKEN, action_id)
             self.avail_list.addItem(entry)
+
+    def _sync_items_order(self, *_):
+        items = self._cur_items()
+
+        def token_of(it):
+            if isinstance(it, str):
+                return it
+            if isinstance(it, dict):
+                if it.get("id"):
+                    return it["id"]
+                if it.get("name") is not None:
+                    return it["name"]
+            return None
+
+        by_token = {}
+        for it in items:
+            t = token_of(it)
+            if t is not None and t not in by_token:
+                by_token[t] = it
+        new_order = []
+        for i in range(self.items_list.count()):
+            entry = self.items_list.item(i)
+            t = entry.data(ROLE_TOKEN)
+            if t in by_token:
+                new_order.append(by_token[t])
+        if len(new_order) == len(items):
+            items[:] = new_order
+
+    def _on_item_double_click(self, *_):
+        entry = self.items_list.currentItem()
+        if entry is None:
+            return
+        if entry.data(ROLE_TYPE) == TYPE_MENU:
+            self._enter_submenu()
+        else:
+            self._rename_item()
+
+    def _enter_submenu(self):
+        idx = self.items_list.currentRow()
+        if idx < 0 or not self._cur_items():
+            return
+        it = self._cur_items()[idx]
+        if isinstance(it, dict) and it.get("name") is not None:
+            self.path.append(it)
+            self._render_current()
 
     def _add_selected(self):
         entry = self.avail_list.currentItem()
-        if entry is None or not self.lists:
+        if entry is None or not self.path:
             return
-        action_id = entry.data(Qt.UserRole)
-        existing = {it["id"] for it in self._cur_items()}
+        action_id = entry.data(ROLE_TOKEN)
+        existing = {it["id"] if isinstance(it, dict) and it.get("id") else it
+                    for it in self._cur_items() if isinstance(it, (str, dict))}
         if action_id not in existing:
-            self.lists[self.current]["items"].append({"id": action_id, "label": ""})
+            self._cur_items().append({"id": action_id, "label": ""})
             self._render_items()
+
+    def _add_submenu(self):
+        if not self.path:
+            return
+        name, ok = QInputDialog.getText(self, "Add Submenu", "Submenu name:")
+        if not ok or not name.strip():
+            return
+        self._cur_items().append({"name": name.strip(), "shortcut": "", "items": []})
+        self._render_items()
 
     def _remove_selected(self):
         row = self.items_list.currentRow()
-        if row < 0 or not self.lists:
+        if row < 0 or not self._cur_items():
             return
         self._cur_items().pop(row)
         self._render_items()
@@ -344,7 +435,7 @@ class ListMenuDialog(QDialog):
     def _move_up(self):
         row = self.items_list.currentRow()
         items = self._cur_items()
-        if row <= 0 or not self.lists:
+        if row <= 0 or not items:
             return
         items[row], items[row - 1] = items[row - 1], items[row]
         self._render_items()
@@ -353,7 +444,7 @@ class ListMenuDialog(QDialog):
     def _move_down(self):
         row = self.items_list.currentRow()
         items = self._cur_items()
-        if row < 0 or row >= len(items) - 1 or not self.lists:
+        if row < 0 or row >= len(items) - 1 or not items:
             return
         items[row], items[row + 1] = items[row + 1], items[row]
         self._render_items()
@@ -361,17 +452,32 @@ class ListMenuDialog(QDialog):
 
     def _rename_item(self):
         row = self.items_list.currentRow()
-        if row < 0 or not self.lists:
-            return
         items = self._cur_items()
+        if row < 0 or not items:
+            return
         cur = items[row]
-        default = cur.get("label", "") or self._catalog.get(cur["id"], cur["id"])
+        if isinstance(cur, dict) and cur.get("name") is not None:
+            # submenu: rename the submenu
+            new_name, ok = QInputDialog.getText(
+                self, "Rename Submenu", "Submenu name:", text=cur["name"])
+            if ok and new_name.strip():
+                cur["name"] = new_name.strip()
+                self._render_items()
+                self._render_path_bar()
+            return
+        # command: set custom label
+        default = (cur.get("label", "") if isinstance(cur, dict) else "") \
+            or self._catalog.get(cur["id"] if isinstance(cur, dict) else cur,
+                                 cur["id"] if isinstance(cur, dict) else cur)
         new_label, ok = QInputDialog.getText(
             self, "Rename Item",
             "Custom name (leave empty to use Krita's default):",
             text=default)
         if ok:
-            items[row]["label"] = new_label.strip()
+            if isinstance(cur, str):
+                items[row] = {"id": cur, "label": new_label.strip()}
+            else:
+                cur["label"] = new_label.strip()
             self._render_items()
 
     # ---------- Save ----------

@@ -119,11 +119,7 @@ class ListMenuExtension(Extension):
             menu.clear()
             for lst in load_lists():
                 sub = menu.addMenu(lst["name"])
-                for item in lst["items"]:
-                    act = self._make_item_action(
-                        item["id"], item.get("label", ""), sub)
-                    if act is not None:
-                        sub.addAction(act)
+                self._build_menu_node(sub, lst)
             menu.addSeparator()
             menu.addAction(entry["edit_action"])
             break
@@ -184,8 +180,7 @@ class ListMenuExtension(Extension):
             return
         parent = self._active_window_widget()
         menu = QMenu(parent)
-        for item in lst["items"]:
-            self._add_popup_action(menu, item["id"], item.get("label", ""))
+        self._build_menu_node(menu, lst)
         if not menu.actions():
             menu.deleteLater()
             return
@@ -204,8 +199,7 @@ class ListMenuExtension(Extension):
         menu = QMenu(parent)
         for lst in load_lists():
             sub = menu.addMenu(lst["name"])
-            for item in lst["items"]:
-                self._add_popup_action(sub, item["id"], item.get("label", ""))
+            self._build_menu_node(sub, lst)
         menu.addSeparator()
         edit_act = menu.addAction("Edit Custom List…")
         edit_act.triggered.connect(self.open_editor)
@@ -242,6 +236,27 @@ class ListMenuExtension(Extension):
             pass
         act.triggered.connect(native.trigger)
         return act
+
+    def _build_menu_node(self, parent_menu, node):
+        """Recursively add a menu node's commands and submenus to a QMenu."""
+        for entry in node.get("items", []):
+            aid, label = None, ""
+            if isinstance(entry, str):
+                aid = entry
+            elif isinstance(entry, dict):
+                if entry.get("id"):
+                    aid, label = entry["id"], entry.get("label", "")
+                elif entry.get("name") is not None:
+                    sub = parent_menu.addMenu(entry["name"])
+                    self._build_menu_node(sub, entry)
+                    continue
+                else:
+                    continue
+            else:
+                continue
+            act = self._make_item_action(aid, label, parent_menu)
+            if act is not None:
+                parent_menu.addAction(act)
 
     def _force_close_on_trigger(self, menu):
         """Force the menu to close after ANY item is clicked (even checkable).

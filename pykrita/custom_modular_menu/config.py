@@ -73,15 +73,24 @@ DEFAULT_POPUP_SHORTCUT = ""  # whole-menu popup trigger key
 
 
 def _clean_items(items):
-    """Normalise raw items into [{"id", "label"}] (string = no custom label)."""
+    """Normalise raw items recursively.
+
+    command -> {"id","label"};  submenu -> {"name","shortcut","items": [...]}.
+    Plain string -> command without custom label.
+    """
     out = []
     for it in items if isinstance(items, list) else []:
         if isinstance(it, str) and it:
             out.append({"id": it, "label": ""})
-        elif isinstance(it, dict) and it.get("id"):
-            out.append({"id": it["id"], "label": it.get("label", "") or ""})
-        elif isinstance(it, (list, tuple)) and len(it) >= 1 and it[0]:
-            out.append({"id": it[0], "label": it[1] if len(it) > 1 else ""})
+        elif isinstance(it, dict):
+            if it.get("id"):
+                out.append({"id": it["id"], "label": it.get("label", "") or ""})
+            elif it.get("name") is not None:
+                out.append({
+                    "name": it.get("name", ""),
+                    "shortcut": it.get("shortcut", "") or "",
+                    "items": _clean_items(it.get("items", [])),
+                })
     return out
 
 
@@ -100,16 +109,21 @@ def _clean_lists(lists):
 
 
 def _serialize_items(items):
-    """Serialize items (dicts) back to compact form: plain id or {"id","label"}."""
+    """Serialize items (dicts) back to compact form: command or nested submenu."""
     out = []
     for it in items if isinstance(items, list) else []:
-        if not isinstance(it, dict) or not it.get("id"):
+        if not isinstance(it, dict):
             continue
-        label = it.get("label", "") or ""
-        if label:
-            out.append({"id": it["id"], "label": label})
-        else:
-            out.append(it["id"])
+        if it.get("id"):
+            aid = it["id"]
+            label = it.get("label", "") or ""
+            out.append({"id": aid, "label": label} if label else aid)
+        elif it.get("name") is not None:
+            out.append({
+                "name": it.get("name", ""),
+                "shortcut": it.get("shortcut", "") or "",
+                "items": _serialize_items(it.get("items", [])),
+            })
     return out
 
 

@@ -53,9 +53,7 @@ class ListMenuDocker(DockWidget):
             label = QLabel(lst["name"])
             label.setStyleSheet("font-weight: bold; color: #ddd;")
             body.addWidget(label)
-
-            for item in lst["items"]:
-                body.addWidget(self._make_button(item["id"], item.get("label", "")))
+            self._populate(body, lst, indent=1)
 
         body.addStretch()
         inner.setLayout(body)
@@ -65,7 +63,7 @@ class ListMenuDocker(DockWidget):
         container.setLayout(outer)
         self.setWidget(container)
 
-    def _make_button(self, action_id, label=""):
+    def _make_button(self, action_id, label="", indent=0):
         act = None
         try:
             act = Krita.instance().action(action_id)
@@ -83,9 +81,27 @@ class ListMenuDocker(DockWidget):
                 btn.setEnabled(act.isEnabled())
             except RuntimeError:
                 pass
+        if indent:
+            btn.setContentsMargins(indent * 14, 0, 0, 0)
         btn.setStyleSheet("QPushButton { text-align: left; padding: 3px 6px; }")
         btn.clicked.connect(lambda _=False, a=action_id: self._run(a))
         return btn
+
+    def _populate(self, layout, node, indent=0):
+        """Recursively render a menu node's commands and submenus in the docker."""
+        for entry in node.get("items", []):
+            if isinstance(entry, str):
+                layout.addWidget(self._make_button(entry, "", indent))
+            elif isinstance(entry, dict):
+                if entry.get("id"):
+                    layout.addWidget(self._make_button(
+                        entry["id"], entry.get("label", ""), indent))
+                elif entry.get("name") is not None:
+                    sub = QLabel(entry["name"])
+                    sub.setStyleSheet("font-weight: bold; color: #aaa;")
+                    sub.setContentsMargins(indent * 14, 0, 0, 0)
+                    layout.addWidget(sub)
+                    self._populate(layout, entry, indent + 1)
 
     def _run(self, action_id):
         try:
