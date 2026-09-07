@@ -12,6 +12,7 @@ from PyQt5.QtGui import QFont, QKeySequence
 from PyQt5.QtWidgets import (
     QAbstractItemView,
     QApplication,
+    QComboBox,
     QDialog,
     QFileDialog,
     QGroupBox,
@@ -30,6 +31,7 @@ from PyQt5.QtWidgets import (
 )
 
 from .config import (
+    LAYER_BLEND_MODES,
     build_config_dict,
     catalog_actions,
     load_config,
@@ -174,12 +176,16 @@ class ListMenuDialog(QDialog):
         cm.addLayout(btn_row)
         body.addWidget(current_box, 2)
 
-        # Available actions (pick commands to add)
-        avail_box = QGroupBox("Available actions")
+        # Add items (pick a Krita action or a layer blend mode to add)
+        avail_box = QGroupBox("Add items")
         av = QVBoxLayout(avail_box)
+        self.add_type = QComboBox()
+        self.add_type.addItems(["Krita Actions", "Layer Blend Mode"])
+        self.add_type.currentIndexChanged.connect(lambda _i: self._reload_available())
+        av.addWidget(self.add_type)
         search_row = QHBoxLayout()
         self.search_box = QLineEdit()
-        self.search_box.setPlaceholderText("Search name or id…")
+        self.search_box.setPlaceholderText("Search…")
         self.search_box.textChanged.connect(self._reload_available)
         search_row.addWidget(self.search_box)
         av.addLayout(search_row)
@@ -187,7 +193,7 @@ class ListMenuDialog(QDialog):
         self.avail_list.itemDoubleClicked.connect(lambda _i: self._add_selected())
         av.addWidget(self.avail_list)
         add_btn = QPushButton("Add")
-        add_btn.setToolTip("Add the selected action (or double-click it)")
+        add_btn.setToolTip("Add the selected item (or double-click it)")
         add_btn.clicked.connect(self._add_selected)
         av.addWidget(add_btn)
         body.addWidget(avail_box, 2)
@@ -402,6 +408,21 @@ class ListMenuDialog(QDialog):
     def _reload_available(self):
         self.avail_list.clear()
         needle = self.search_box.text().strip().lower()
+        if self.add_type.currentIndex() == 1:
+            # Layer blend mode picker
+            existing = {it.get("blend") for it in self._cur_items()
+                        if isinstance(it, dict) and it.get("blend")}
+            for oid, label in LAYER_BLEND_MODES:
+                if needle and needle not in label.lower() and needle not in oid.lower():
+                    continue
+                if oid in existing:
+                    continue
+                entry = QListWidgetItem(f"\u25c6 {label}   [{oid}]")
+                entry.setData(ROLE_TOKEN, oid)
+                entry.setData(ROLE_TYPE, TYPE_BLEND)
+                self.avail_list.addItem(entry)
+            return
+        # Krita actions
         existing = self._existing_cmd_ids()
         for action_id, text in self._catalog.items():
             if needle and needle not in text.lower() and needle not in action_id.lower():
@@ -410,6 +431,7 @@ class ListMenuDialog(QDialog):
                 continue
             entry = QListWidgetItem(f"{text}   [{action_id}]")
             entry.setData(ROLE_TOKEN, action_id)
+            entry.setData(ROLE_TYPE, TYPE_CMD)
             self.avail_list.addItem(entry)
 
     def _sync_items_order(self, *_):
@@ -449,6 +471,15 @@ class ListMenuDialog(QDialog):
     def _add_selected(self):
         entry = self.avail_list.currentItem()
         if entry is None or not self.path:
+            return
+        if entry.data(ROLE_TYPE) == TYPE_BLEND:
+            oid = entry.data(ROLE_TOKEN)
+            existing = {it.get("blend") for it in self._cur_items()
+                        if isinstance(it, dict) and it.get("blend")}
+            if oid not in existing:
+                label = dict(LAYER_BLEND_MODES).get(oid, oid)
+                self._cur_items().append({"blend": oid, "label": label})
+                self._render_items()
             return
         action_id = entry.data(ROLE_TOKEN)
         if action_id not in self._existing_cmd_ids():

@@ -15,6 +15,38 @@ from krita import Krita
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 
+# The authoritative LAYER blend-mode ids (from KoCompositeOpRegistry.h). These are
+# the values Node.setBlendingMode() accepts — NOT brush blend modes.
+LAYER_BLEND_MODES = [
+    ("normal", "Normal"),
+    ("multiply", "Multiply"),
+    ("screen", "Screen"),
+    ("overlay", "Overlay"),
+    ("soft_light", "Soft Light (Photoshop)"),
+    ("hard_light", "Hard Light"),
+    ("dodge", "Color Dodge"),
+    ("linear_dodge", "Linear Dodge"),
+    ("burn", "Burn"),
+    ("linear_burn", "Linear Burn"),
+    ("darken", "Darken"),
+    ("lighten", "Lighten"),
+    ("diff", "Difference"),
+    ("exclusion", "Exclusion"),
+    ("vivid_light", "Vivid Light"),
+    ("linear light", "Linear Light"),
+    ("pin_light", "Pin Light"),
+    ("hard_mix_photoshop", "Hard Mix (Photoshop)"),
+    ("dissolve", "Dissolve"),
+    ("darker color", "Darker Color"),
+    ("lighter color", "Lighter Color"),
+    ("divide", "Divide"),
+    ("subtract", "Subtract"),
+    ("hue", "Hue"),
+    ("saturation", "Saturation"),
+    ("color", "Color"),
+    ("luminize", "Luminosity"),
+]
+
 # Default lists on first run (action ids verified against Krita 5.3 krita.action)
 DEFAULT_LISTS = [
     {"name": "Canvas Assist", "shortcut": "", "items": [
@@ -61,35 +93,8 @@ DEFAULT_LISTS = [
         "krita_filter_oilpaint",
         "krita_filter_sobel",
     ]},
-    {"name": "Blend Mode", "shortcut": "", "items": [
-        {"blend": "normal", "label": "Normal"},
-        {"blend": "multiply", "label": "Multiply"},
-        {"blend": "screen", "label": "Screen"},
-        {"blend": "overlay", "label": "Overlay"},
-        {"blend": "soft_light", "label": "Soft Light (Photoshop)"},
-        {"blend": "hard_light", "label": "Hard Light"},
-        {"blend": "dodge", "label": "Color Dodge"},
-        {"blend": "linear_dodge", "label": "Linear Dodge"},
-        {"blend": "burn", "label": "Burn"},
-        {"blend": "linear_burn", "label": "Linear Burn"},
-        {"blend": "darken", "label": "Darken"},
-        {"blend": "lighten", "label": "Lighten"},
-        {"blend": "diff", "label": "Difference"},
-        {"blend": "exclusion", "label": "Exclusion"},
-        {"blend": "vivid_light", "label": "Vivid Light"},
-        {"blend": "linear light", "label": "Linear Light"},
-        {"blend": "pin_light", "label": "Pin Light"},
-        {"blend": "hard_mix_photoshop", "label": "Hard Mix (Photoshop)"},
-        {"blend": "dissolve", "label": "Dissolve"},
-        {"blend": "darker color", "label": "Darker Color"},
-        {"blend": "lighter color", "label": "Lighter Color"},
-        {"blend": "divide", "label": "Divide"},
-        {"blend": "subtract", "label": "Subtract"},
-        {"blend": "hue", "label": "Hue"},
-        {"blend": "saturation", "label": "Saturation"},
-        {"blend": "color", "label": "Color"},
-        {"blend": "luminize", "label": "Luminosity"},
-    ]},
+    {"name": "Blend Mode", "shortcut": "",
+     "items": [{"blend": o, "label": l} for o, l in LAYER_BLEND_MODES]},
     {"name": "View", "shortcut": "", "items": [
         "zoom_to_fit",
         "zoom_to_100pct",
@@ -267,7 +272,7 @@ def run_script(code):
 
 
 def run_composite_op(op_id):
-    """Set the active layer's composite (blend) mode by its Krita id."""
+    """Set the active layer's blend mode by its Krita id (setBlendingMode)."""
     if not isinstance(op_id, str) or not op_id:
         return
     try:
@@ -279,9 +284,9 @@ def run_composite_op(op_id):
     node = doc.activeNode()
     if node is not None:
         try:
-            node.setCompositeOp(op_id)
+            node.setBlendingMode(op_id)
         except Exception as e:
-            print(f"[CMM] setCompositeOp error: {e}")
+            print(f"[CMM] setBlendingMode error: {e}")
 
 
 # ---------- Refresh notification (reload Tools menu / Docker / shortcuts after editing) ----------
