@@ -12,6 +12,8 @@ shortcut_composer plugin).
 - Edit dialog (saving changes refreshes every entry + shortcuts automatically)
 """
 
+import time
+
 from krita import Extension, Krita
 from PyQt5.QtCore import QEvent, QObject, Qt
 from PyQt5.QtGui import QCursor, QKeySequence
@@ -64,6 +66,7 @@ class ListMenuExtension(Extension):
         self._shortcut_map = {}   # shortcut string -> callable
         self._popup_active = False
         self._popup_menu_ref = None
+        self._ignore_until = 0.0  # debounce: swallow re-triggers right after closing
         # App-level key filter (global, sees every key press regardless of focus)
         self._app_filter = _KeyFilter(self)
         app = QApplication.instance()
@@ -160,7 +163,7 @@ class ListMenuExtension(Extension):
 
     def pop_menu(self, *_):
         """Open the whole multi-list menu under the cursor of the active window."""
-        if self._popup_active:
+        if self._popup_active or time.time() < self._ignore_until:
             return
         menu = self._build_popup_menu(self._active_window_widget())
         self._popup_active = True
@@ -169,11 +172,12 @@ class ListMenuExtension(Extension):
         finally:
             self._popup_active = False
             self._popup_menu_ref = None
+            self._ignore_until = time.time() + 0.3
             menu.deleteLater()
 
     def pop_list(self, index):
         """Open only one list (given its index) as a cursor menu."""
-        if self._popup_active:
+        if self._popup_active or time.time() < self._ignore_until:
             return
         try:
             lst = load_lists()[index]
@@ -193,6 +197,7 @@ class ListMenuExtension(Extension):
         finally:
             self._popup_active = False
             self._popup_menu_ref = None
+            self._ignore_until = time.time() + 0.3
             menu.deleteLater()
 
     def _build_popup_menu(self, parent):
@@ -235,6 +240,10 @@ class ListMenuExtension(Extension):
     def _close_current_popup(self):
         m = self._popup_menu_ref
         if m is not None:
+            try:
+                m.close()   # end the exec_ event loop
+            except RuntimeError:
+                pass
             try:
                 m.hide()
             except RuntimeError:
