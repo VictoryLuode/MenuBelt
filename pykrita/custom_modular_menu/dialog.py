@@ -129,7 +129,7 @@ class ListMenuDialog(QDialog):
         self.sidebar.setSelectionMode(QAbstractItemView.SingleSelection)
         self.sidebar.model().rowsMoved.connect(self._sync_lists_order)
         left.addWidget(self.sidebar)
-        for label, slot in (("New List", self._new_list),
+        for label, slot in (("Add", self._new_list),
                             ("Rename", self._rename_list),
                             ("Delete", self._delete_list)):
             b = QPushButton(label)
@@ -165,8 +165,6 @@ class ListMenuDialog(QDialog):
         for label, slot in (("Add Submenu", self._add_submenu),
                             ("Add Script", self._add_script),
                             ("Rename", self._rename_item),
-                            ("Up", self._move_up),
-                            ("Down", self._move_down),
                             ("Remove", self._remove_selected)):
             b = QPushButton(label)
             b.clicked.connect(slot)
@@ -283,7 +281,7 @@ class ListMenuDialog(QDialog):
         self._render_preview()
 
     def _new_list(self):
-        name, ok = QInputDialog.getText(self, "New List", "List name:")
+        name, ok = QInputDialog.getText(self, "Add", "List name:")
         if not ok or not name.strip():
             return
         self.lists.append({"name": name.strip(), "shortcut": "", "items": []})
@@ -478,24 +476,6 @@ class ListMenuDialog(QDialog):
             return
         self._cur_items().pop(row)
         self._render_items()
-
-    def _move_up(self):
-        row = self.items_list.currentRow()
-        items = self._cur_items()
-        if row <= 0 or not items:
-            return
-        items[row], items[row - 1] = items[row - 1], items[row]
-        self._render_items()
-        self.items_list.setCurrentRow(row - 1)
-
-    def _move_down(self):
-        row = self.items_list.currentRow()
-        items = self._cur_items()
-        if row < 0 or row >= len(items) - 1 or not items:
-            return
-        items[row], items[row + 1] = items[row + 1], items[row]
-        self._render_items()
-        self.items_list.setCurrentRow(row + 1)
 
     def _rename_item(self):
         row = self.items_list.currentRow()
