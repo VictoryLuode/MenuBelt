@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Service
+ServiceTypes=Krita/PythonPlugin
+X-KDE-Library=quick_list_menu
+X-Python-2-Compatible=false
+Name=Quick List Menu
+Comment=在光标处弹出可自定义的 Krita 动作列表菜单，可从快捷键编辑器绑定触发键。

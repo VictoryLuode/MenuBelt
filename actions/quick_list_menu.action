@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ActionCollection version="2" name="Scripts">
+    <Actions category="Scripts">
+        <text>Quick List Menu</text>
+
+        <Action name="quick_list_menu_popup">
+        <icon></icon>
+        <text>弹出快捷列表菜单</text>
+        <whatsThis></whatsThis>
+        <toolTip>在光标处打开自定义快捷列表菜单</toolTip>
+        <iconText></iconText>
+        <activationFlags>0</activationFlags>
+        <activationConditions>0</activationConditions>
+        <shortcut></shortcut>
+        <isCheckable>false</isCheckable>
+        <statusTip></statusTip>
+        </Action>
+
+        <Action name="quick_list_menu_edit">
+        <icon></icon>
+        <text>编辑快捷列表菜单…</text>
+        <whatsThis></whatsThis>
+        <toolTip>配置快捷列表菜单包含的动作与顺序</toolTip>
+        <iconText></iconText>
+        <activationFlags>0</activationFlags>
+        <activationConditions>0</activationConditions>
+        <shortcut></shortcut>
+        <isCheckable>false</isCheckable>
+        <statusTip></statusTip>
+        </Action>
+    </Actions>
+</ActionCollection>
