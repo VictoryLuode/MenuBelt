@@ -98,6 +98,11 @@ class ListMenuDialog(QDialog):
         left = QVBoxLayout(left_box)
         self.sidebar = QListWidget()
         self.sidebar.currentRowChanged.connect(self._on_switch_list)
+        # Drag-and-drop reorder
+        self.sidebar.setDragDropMode(QAbstractItemView.InternalMove)
+        self.sidebar.setDefaultDropAction(Qt.MoveAction)
+        self.sidebar.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.sidebar.model().rowsMoved.connect(self._sync_lists_order)
         left.addWidget(self.sidebar)
         for label, slot in (("New List", self._new_list),
                             ("Rename", self._rename_list),
@@ -200,6 +205,21 @@ class ListMenuDialog(QDialog):
     def _on_switch_list(self, row):
         if 0 <= row < len(self.lists):
             self.current = row
+            self._render_items()
+            self._update_labels()
+
+    def _sync_lists_order(self, *_):
+        """After a drag reorder of the sidebar, reorder the lists to match."""
+        by_name = {lst["name"]: lst for lst in self.lists}
+        new_order = []
+        for i in range(self.sidebar.count()):
+            name = self.sidebar.item(i).data(Qt.UserRole)
+            if name in by_name:
+                new_order.append(by_name[name])
+        if len(new_order) == len(self.lists):
+            self.lists[:] = new_order
+        self.current = max(0, self.sidebar.currentRow())
+        if 0 <= self.current < len(self.lists):
             self._render_items()
             self._update_labels()
 
