@@ -20,6 +20,10 @@ the cursor, the <strong>Tools</strong> menu, and a <strong>dockable panel</stron
 <ul>
   <li><strong>Multiple lists</strong> — e.g. "Canvas Assist", "Layers", "Add Layer", "View". Every list is fully yours to build.</li>
   <li><strong>Reuses native Krita actions</strong> — each item is a real Krita action, so icons, enable/disable state and shortcut hints are inherited automatically.</li>
+  <li><strong>Script items</strong> — run your own Python snippet from a menu item (Krita is available as <code>krita</code>/<code>app</code>).</li>
+  <li><strong>Live preview</strong> — a pane in the editor shows the whole menu tree as you edit.</li>
+  <li><strong>Export / Import</strong> — save or load a config file to share or back up your setup.</li>
+  <li><strong>Shortcut conflict detection</strong> — warns if a list shortcut collides with another list or a Krita action.</li>
   <li><strong>Nested submenus</strong> — add a menu inside a menu (any depth), each holding its own commands and further submenus, for modular organisation.</li>
   <li><strong>Custom names</strong> — rename any item to whatever you like; the menu, Tools submenu and Docker all show your name (with the native icon and behaviour).</li>
   <li><strong>Three synced entries</strong>: a cursor popup menu, <code>Tools &gt; Custom Modular Menu</code>, and a Docker panel.</li>
@@ -37,6 +41,7 @@ the cursor, the <strong>Tools</strong> menu, and a <strong>dockable panel</stron
   <li><strong>Edit lists:</strong> <code>Tools &gt; Custom Modular Menu &gt; Edit Custom List</code>, or the Docker panel's <em>Edit…</em> button.</li>
   <li><strong>Custom names:</strong> in the editor, double-click a command item to give it a custom name; leave empty to use Krita&rsquo;s default.</li>
   <li><strong>Submenus:</strong> press <em>Add Submenu</em> to nest a menu, then double-click it to enter; use the breadcrumb at the top to go back. Dragging reorders items (and submenus) anywhere.</li>
+  <li><strong>Scripts:</strong> press <em>Add Script</em>, give it a name and paste Python code; clicking the item runs it.</li>
   <li><strong>Shortcuts:</strong> in the editor, click the <em>Popup shortcut</em> field and press a key combination (e.g. <code>Ctrl+Alt+1</code>) to pop that list at the cursor. The whole-menu popup is bound in <code>Settings &gt; Configure Krita &gt; Keyboard Shortcuts &gt; Custom Modular Menu &gt; Pop Up Custom List</code>.</li>
   <li><strong>Docker panel:</strong> <code>Settings &gt; Dockers &gt; Custom Modular Menu</code> — dock or float it like a toolbar.</li>
 </ul>
