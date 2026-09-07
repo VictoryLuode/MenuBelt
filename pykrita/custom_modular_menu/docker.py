@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from .config import load_lists, notify_refresh, register_refresh, run_script
+from .config import load_lists, notify_refresh, register_refresh, run_composite_op, run_script
 
 
 class ListMenuDocker(DockWidget):
@@ -104,6 +104,15 @@ class ListMenuDocker(DockWidget):
                     btn.setStyleSheet("QPushButton { text-align: left; padding: 3px 6px; }")
                     btn.clicked.connect(
                         lambda _=False, c=entry.get("script", ""): run_script(c))
+                    layout.addWidget(btn)
+                elif entry.get("blend") is not None:
+                    btn = QPushButton(entry.get("label", entry["blend"]) or entry["blend"])
+                    btn.setToolTip("Set layer blend mode")
+                    if indent:
+                        btn.setContentsMargins(indent * 14, 0, 0, 0)
+                    btn.setStyleSheet("QPushButton { text-align: left; padding: 3px 6px; }")
+                    btn.clicked.connect(
+                        lambda _=False, o=entry.get("blend", ""): run_composite_op(o))
                     layout.addWidget(btn)
                 elif entry.get("name") is not None:
                     sub = QLabel(entry["name"])

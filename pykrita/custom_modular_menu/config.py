@@ -62,26 +62,33 @@ DEFAULT_LISTS = [
         "krita_filter_sobel",
     ]},
     {"name": "Blend Mode", "shortcut": "", "items": [
-        "Select Normal Blending Mode",
-        "Select Multiply Blending Mode",
-        "Select Screen Blending Mode",
-        "Select Overlay Blending Mode",
-        "Select Soft Light Blending Mode",
-        "Select Color Dodge Blending Mode",
-        "Select Darken Blending Mode",
-        "Select Lighten Blending Mode",
-        "Select Luminosity Blending Mode",
-        "Select Saturation Blending Mode",
-        "Select Color Blending Mode",
-        "Select Behind Blending Mode",
-        "Select Addition Blending Mode",
-        "Select Burn Blending Mode",
-        "Select Copy Blending Mode",
-        "Select Destination Atop Blending Mode",
-        "Select Erase Blending Mode",
-        "Select Lambert Lighting Blending Mode",
-        "Select Subtract Blending Mode",
-        "Select Value Blending Mode",
+        {"blend": "normal", "label": "Normal"},
+        {"blend": "multiply", "label": "Multiply"},
+        {"blend": "screen", "label": "Screen"},
+        {"blend": "overlay", "label": "Overlay"},
+        {"blend": "soft_light", "label": "Soft Light (Photoshop)"},
+        {"blend": "hard_light", "label": "Hard Light"},
+        {"blend": "dodge", "label": "Color Dodge"},
+        {"blend": "linear_dodge", "label": "Linear Dodge"},
+        {"blend": "burn", "label": "Burn"},
+        {"blend": "linear_burn", "label": "Linear Burn"},
+        {"blend": "darken", "label": "Darken"},
+        {"blend": "lighten", "label": "Lighten"},
+        {"blend": "diff", "label": "Difference"},
+        {"blend": "exclusion", "label": "Exclusion"},
+        {"blend": "vivid_light", "label": "Vivid Light"},
+        {"blend": "linear light", "label": "Linear Light"},
+        {"blend": "pin_light", "label": "Pin Light"},
+        {"blend": "hard_mix_photoshop", "label": "Hard Mix (Photoshop)"},
+        {"blend": "dissolve", "label": "Dissolve"},
+        {"blend": "darker color", "label": "Darker Color"},
+        {"blend": "lighter color", "label": "Lighter Color"},
+        {"blend": "divide", "label": "Divide"},
+        {"blend": "subtract", "label": "Subtract"},
+        {"blend": "hue", "label": "Hue"},
+        {"blend": "saturation", "label": "Saturation"},
+        {"blend": "color", "label": "Color"},
+        {"blend": "luminize", "label": "Luminosity"},
     ]},
     {"name": "View", "shortcut": "", "items": [
         "zoom_to_fit",
@@ -97,7 +104,8 @@ DEFAULT_POPUP_SHORTCUT = ""  # whole-menu popup trigger key
 def _clean_items(items):
     """Normalise raw items recursively.
 
-    command -> {"id","label"};  submenu -> {"name","shortcut","items": [...]}.
+    command -> {"id","label"};  script -> {"script","label"};
+    blend   -> {"blend","label"};  submenu -> {"name","shortcut","items": [...]}.
     Plain string -> command without custom label.
     """
     out = []
@@ -109,6 +117,9 @@ def _clean_items(items):
                 out.append({"id": it["id"], "label": it.get("label", "") or ""})
             elif it.get("script") is not None:
                 out.append({"script": it.get("script", ""),
+                            "label": it.get("label", "") or ""})
+            elif it.get("blend") is not None:
+                out.append({"blend": it.get("blend", ""),
                             "label": it.get("label", "") or ""})
             elif it.get("name") is not None:
                 out.append({
@@ -145,6 +156,9 @@ def _serialize_items(items):
             out.append({"id": aid, "label": label} if label else aid)
         elif it.get("script") is not None:
             out.append({"script": it.get("script", ""),
+                        "label": it.get("label", "") or ""})
+        elif it.get("blend") is not None:
+            out.append({"blend": it.get("blend", ""),
                         "label": it.get("label", "") or ""})
         elif it.get("name") is not None:
             out.append({
@@ -250,6 +264,24 @@ def run_script(code):
                     "Krita": Krita, "krita": app, "app": app})
     except Exception as e:
         print(f"[CMM] script error: {e}")
+
+
+def run_composite_op(op_id):
+    """Set the active layer's composite (blend) mode by its Krita id."""
+    if not isinstance(op_id, str) or not op_id:
+        return
+    try:
+        doc = Krita.instance().activeDocument()
+    except Exception:
+        return
+    if doc is None:
+        return
+    node = doc.activeNode()
+    if node is not None:
+        try:
+            node.setCompositeOp(op_id)
+        except Exception as e:
+            print(f"[CMM] setCompositeOp error: {e}")
 
 
 # ---------- Refresh notification (reload Tools menu / Docker / shortcuts after editing) ----------

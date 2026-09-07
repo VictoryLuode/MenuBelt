@@ -27,7 +27,7 @@ from PyQt5.QtWidgets import (
     QTextEdit,
 )
 
-from .config import load_lists, notify_refresh, register_refresh, run_script
+from .config import load_lists, notify_refresh, register_refresh, run_composite_op, run_script
 
 # Keys that on their own are modifiers, not real shortcuts
 _MODIFIER_KEYS = (
@@ -250,6 +250,12 @@ class ListMenuExtension(Extension):
                     sact.triggered.connect(
                         lambda _=False, c=entry.get("script", ""): run_script(c))
                     parent_menu.addAction(sact)
+                    continue
+                elif entry.get("blend") is not None:
+                    bact = QAction(entry.get("label", entry["blend"]), parent_menu)
+                    bact.triggered.connect(
+                        lambda _=False, o=entry.get("blend", ""): run_composite_op(o))
+                    parent_menu.addAction(bact)
                     continue
                 elif entry.get("name") is not None:
                     sub = parent_menu.addMenu(entry["name"])

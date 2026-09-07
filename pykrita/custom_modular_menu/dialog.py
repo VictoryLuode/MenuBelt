@@ -44,6 +44,7 @@ ROLE_TYPE = Qt.UserRole + 2
 TYPE_CMD = "cmd"
 TYPE_MENU = "menu"
 TYPE_SCRIPT = "script"
+TYPE_BLEND = "blend"
 
 
 class ListMenuDialog(QDialog):
@@ -350,6 +351,8 @@ class ListMenuDialog(QDialog):
                 return it["id"]
             if it.get("script") is not None:
                 return "script:" + (it.get("label", "") or "")
+            if it.get("blend") is not None:
+                return "blend:" + (it.get("blend", "") or "")
             if it.get("name") is not None:
                 return it["name"]
         return None
@@ -371,6 +374,8 @@ class ListMenuDialog(QDialog):
                     text = it.get("label", "") or self._catalog.get(it["id"], it["id"])
                 elif it.get("script") is not None:
                     typ, text = TYPE_SCRIPT, f"[script] {it.get('label', 'Script')}"
+                elif it.get("blend") is not None:
+                    typ, text = TYPE_BLEND, f"\u25c6 {it.get('label', it['blend'])}"
                 elif it.get("name") is not None:
                     typ, text = TYPE_MENU, f"\u25b8 {it['name']}"
             entry = QListWidgetItem(text)
@@ -499,6 +504,13 @@ class ListMenuDialog(QDialog):
                 cur["label"] = new_label.strip()
                 self._render_items()
             return
+        if isinstance(cur, dict) and cur.get("blend") is not None:
+            new_label, ok = QInputDialog.getText(
+                self, "Rename Blend Mode", "Display name:", text=cur.get("label", ""))
+            if ok:
+                cur["label"] = new_label.strip()
+                self._render_items()
+            return
         # command: set custom label
         default = (cur.get("label", "") if isinstance(cur, dict) else "") \
             or self._catalog.get(cur["id"] if isinstance(cur, dict) else cur,
@@ -536,6 +548,9 @@ class ListMenuDialog(QDialog):
                 elif entry.get("script") is not None:
                     parent_item.addChild(QTreeWidgetItem(
                         ["⚙ " + (entry.get("label", "Script") or "Script")]))
+                elif entry.get("blend") is not None:
+                    parent_item.addChild(QTreeWidgetItem(
+                        ["◆ " + (entry.get("label", entry["blend"]) or entry["blend"])]))
                 elif entry.get("name") is not None:
                     child = QTreeWidgetItem([entry["name"]])
                     parent_item.addChild(child)
