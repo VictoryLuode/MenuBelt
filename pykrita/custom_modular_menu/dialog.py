@@ -34,6 +34,7 @@ from .config import (
     LAYER_BLEND_MODES,
     build_config_dict,
     catalog_actions,
+    load_action_categories,
     load_config,
     notify_refresh,
     parse_config_dict,
@@ -67,7 +68,10 @@ class AddSource:
 
 def _enum_actions(dlg, needle):
     existing = dlg._existing_cmd_ids()
+    cat = dlg._action_category_filter()
     for action_id, text in dlg._catalog.items():
+        if cat and dlg._action_categories.get(action_id) != cat:
+            continue
         if needle and needle not in text.lower() and needle not in action_id.lower():
             continue
         if action_id in existing:
@@ -125,6 +129,10 @@ class ListMenuDialog(QDialog):
         self.path = [self.lists[self.current]] if self.lists else []
         self._loading_sc = False
         self._sources = list(ADD_SOURCES)
+        self._action_categories = load_action_categories()
+        catalog_ids = set(self._catalog.keys())
+        self._categories = sorted({v for k, v in self._action_categories.items()
+                                   if k in catalog_ids})
 
         self._build_ui()
         self._reload_sidebar()
@@ -242,8 +250,14 @@ class ListMenuDialog(QDialog):
         av = QVBoxLayout(avail_box)
         self.add_type = QComboBox()
         self.add_type.addItems([s.label for s in self._sources])
-        self.add_type.currentIndexChanged.connect(lambda _i: self._reload_available())
+        self.add_type.currentIndexChanged.connect(lambda _i: self._on_add_type_changed())
         av.addWidget(self.add_type)
+        self.cat_combo = QComboBox()
+        self.cat_combo.addItem("All actions", None)
+        for c in self._categories:
+            self.cat_combo.addItem(c, c)
+        self.cat_combo.currentIndexChanged.connect(lambda _i: self._reload_available())
+        av.addWidget(self.cat_combo)
         search_row = QHBoxLayout()
         self.search_box = QLineEdit()
         self.search_box.setPlaceholderText("Search…")
@@ -471,6 +485,15 @@ class ListMenuDialog(QDialog):
         if 0 <= idx < len(self._sources):
             return self._sources[idx]
         return None
+
+    def _on_add_type_changed(self):
+        src = self._current_source()
+        # Category picker only makes sense for Krita Actions; grey it out otherwise.
+        self.cat_combo.setEnabled(src is not None and src.key == "actions")
+        self._reload_available()
+
+    def _action_category_filter(self):
+        return self.cat_combo.currentData()
 
     def _reload_available(self):
         self.avail_list.clear()

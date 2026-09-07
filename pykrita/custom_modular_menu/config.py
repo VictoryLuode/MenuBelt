@@ -259,6 +259,57 @@ def parse_config_dict(data):
 
 
 # ---------- Script items ----------
+def _candidate_action_dirs():
+    """Candidate dirs holding Krita's .action XML files (ready-made categories)."""
+    dirs = []
+    try:
+        from PyQt5.QtWidgets import QApplication
+        appdir = QApplication.applicationDirPath()
+        for rel in (os.path.join("..", "share", "krita", "actions"),
+                    os.path.join("share", "krita", "actions")):
+            dirs.append(os.path.join(appdir, rel))
+    except Exception:
+        pass
+    try:
+        import glob
+        dirs.extend(glob.glob("D:/Program Files/Scoop/apps/krita/*/share/krita/actions"))
+    except Exception:
+        pass
+    return dirs
+
+
+def load_action_categories():
+    """Parse Krita's .action XML files -> {action_id: category}.
+
+    Reuses the ready-made categories Krita's shortcut editor already groups by
+    (File/Edit/View/Select/Layer/Filter/Settings/Help/...). Returns {} on failure.
+    """
+    mapping = {}
+    try:
+        import xml.etree.ElementTree as ET
+        for d in _candidate_action_dirs():
+            if not os.path.isdir(d):
+                continue
+            for fn in os.listdir(d):
+                if not fn.endswith(".action"):
+                    continue
+                try:
+                    tree = ET.parse(os.path.join(d, fn))
+                except Exception:
+                    continue
+                for actions in tree.getroot().findall("Actions"):
+                    cat = actions.get("category")
+                    if not cat:
+                        continue
+                    for a in actions.findall("Action"):
+                        aid = a.get("name")
+                        if aid:
+                            mapping[aid] = cat
+    except Exception:
+        return {}
+    return mapping
+
+
 def run_script(code):
     """Execute a user-supplied Python snippet in a namespace with Krita access."""
     if not isinstance(code, str) or not code.strip():
