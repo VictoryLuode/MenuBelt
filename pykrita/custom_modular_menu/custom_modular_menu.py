@@ -63,6 +63,7 @@ class ListMenuExtension(Extension):
         self._windows = []
         self._shortcut_map = {}   # shortcut string -> callable
         self._popup_active = False
+        self._popup_menu_ref = None
         # App-level key filter (global, sees every key press regardless of focus)
         self._app_filter = _KeyFilter(self)
         app = QApplication.instance()
@@ -161,13 +162,14 @@ class ListMenuExtension(Extension):
         """Open the whole multi-list menu under the cursor of the active window."""
         if self._popup_active:
             return
-        menu = self._active_menu()
-        if menu is not None:
-            self._popup_active = True
-            try:
-                menu.exec_(QCursor.pos())
-            finally:
-                self._popup_active = False
+        menu = self._build_popup_menu(self._active_window_widget())
+        self._popup_active = True
+        try:
+            menu.exec_(QCursor.pos())
+        finally:
+            self._popup_active = False
+            self._popup_menu_ref = None
+            menu.deleteLater()
 
     def pop_list(self, index):
         """Open only one list (given its index) as a cursor menu."""
@@ -180,18 +182,63 @@ class ListMenuExtension(Extension):
         parent = self._active_window_widget()
         menu = QMenu(parent)
         for action_id in lst["items"]:
+            self._add_popup_action(menu, action_id)
+        if not menu.actions():
+            menu.deleteLater()
+            return
+        self._force_close_on_trigger(menu)
+        self._popup_active = True
+        try:
+            menu.exec_(QCursor.pos())
+        finally:
+            self._popup_active = False
+            self._popup_menu_ref = None
+            menu.deleteLater()
+
+    def _build_popup_menu(self, parent):
+        """Build a fresh cursor popup menu (lists -> items + edit footer)."""
+        menu = QMenu(parent)
+        for lst in load_lists():
+            sub = menu.addMenu(lst["name"])
+            for action_id in lst["items"]:
+                self._add_popup_action(sub, action_id)
+        menu.addSeparator()
+        edit_act = menu.addAction("Edit Custom List…")
+        edit_act.triggered.connect(self.open_editor)
+        self._force_close_on_trigger(menu)
+        return menu
+
+    def _add_popup_action(self, menu, action_id):
+        try:
+            act = Krita.instance().action(action_id)
+        except RuntimeError:
+            act = None
+        if act is not None:
+            menu.addAction(act)
+
+    def _force_close_on_trigger(self, menu):
+        """Force the menu to close after ANY item is clicked (even checkable).
+
+        Connects to a stable method on the extension (not a closure capturing the
+        menu) so that stale connections are safe after the menu is deleted.
+        """
+        self._popup_menu_ref = menu
+        for act in menu.actions():
+            if act.isSeparator():
+                continue
+            sub = act.menu()
+            if sub is not None:
+                self._force_close_on_trigger(sub)
+            else:
+                act.triggered.connect(self._close_current_popup)
+
+    def _close_current_popup(self):
+        m = self._popup_menu_ref
+        if m is not None:
             try:
-                act = Krita.instance().action(action_id)
+                m.hide()
             except RuntimeError:
-                act = None
-            if act is not None:
-                menu.addAction(act)
-        if menu.actions():
-            self._popup_active = True
-            try:
-                menu.exec_(QCursor.pos())
-            finally:
-                self._popup_active = False
+                pass
 
     def _active_window_widget(self):
         active = Krita.instance().activeWindow()
