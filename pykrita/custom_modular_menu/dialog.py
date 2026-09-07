@@ -267,8 +267,7 @@ class ListMenuDialog(QDialog):
         av.addWidget(add_btn)
         self.detail_box = QLabel()
         self.detail_box.setWordWrap(True)
-        self.detail_box.setMinimumHeight(40)
-        self.detail_box.setMaximumHeight(120)
+        self.detail_box.setFixedHeight(104)
         self.detail_box.setTextInteractionFlags(Qt.TextSelectableByMouse)
         av.addWidget(self.detail_box)
         self.add_tree.itemSelectionChanged.connect(self._on_avail_selection_changed)
@@ -510,7 +509,7 @@ class ListMenuDialog(QDialog):
                 lines.append("shortcut: %s" % shortcut)
             lines.append("API: Krita.instance().action('%s').trigger()" % payload)
             self.detail_box.setText("\n".join(lines))
-        elif item.data(ROLE_TYPE) == TYPE_BLEND and payload:
+        elif item.data(0, ROLE_TYPE) == TYPE_BLEND and payload:
             label = dict(LAYER_BLEND_MODES).get(payload, payload)
             self.detail_box.setText(
                 "Layer blend mode: %s\n"
