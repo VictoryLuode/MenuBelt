@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Custom Modular Menu (CMM)</title>
+<style>
+  body { font-family: sans-serif; line-height: 1.5; color: #eee; background: #2b2b2b; padding: 12px 18px; }
+  h1 { font-size: 18px; margin-top: 0; }
+  h2 { font-size: 15px; border-bottom: 1px solid #555; padding-bottom: 4px; margin-top: 20px; }
+  code { background: #3a3a3a; padding: 1px 5px; border-radius: 3px; }
+  .tip { background: #3a3a3a; border-left: 4px solid #4c8bf5; padding: 8px 12px; margin: 12px 0; }
+</style>
+</head>
+<body>
+<h1>Custom Modular Menu (CMM)</h1>
+<p>Build your own <strong>multi-list action menus</strong> and reach them from three places at once:
+the cursor, the <strong>Tools</strong> menu, and a <strong>dockable panel</strong>.</p>
+
+<h2>Features</h2>
+<ul>
+  <li><strong>Multiple lists</strong> — e.g. "Canvas Assist", "Layers", "Add Layer", "View". Every list is fully yours to build.</li>
+  <li><strong>Reuses native Krita actions</strong> — each item is a real Krita action, so icons, enable/disable state and shortcut hints are inherited automatically.</li>
+  <li><strong>Three synced entries</strong>: a cursor popup menu, <code>Tools &gt; Custom Modular Menu</code>, and a Docker panel.</li>
+  <li><strong>Configurable shortcuts</strong> — bind a hotkey for the whole menu or per list, right inside the editor (no need for Krita's Keyboard Shortcuts dialog).</li>
+</ul>
+
+<h2>Install / enable</h2>
+<ol>
+  <li>Copy the <code>pykrita/</code> and <code>actions/</code> folders into your Krita resource directory, then restart Krita.</li>
+  <li>In <code>Settings &gt; Configure Krita &gt; Python Plugin Manager</code>, tick <strong>Custom Modular Menu</strong>, then restart.</li>
+</ol>
+
+<h2>Usage</h2>
+<ul>
+  <li><strong>Edit lists:</strong> <code>Tools &gt; Custom Modular Menu &gt; Edit Custom List</code>, or the Docker panel's <em>Edit…</em> button.</li>
+  <li><strong>Shortcuts:</strong> in the editor, click a <em>Popup shortcut</em> field and press a key combination (e.g. <code>Ctrl+Alt+1</code>) to pop that list at the cursor. The top field binds the whole menu popup.</li>
+  <li><strong>Docker panel:</strong> <code>Settings &gt; Dockers &gt; Custom Modular Menu</code> — dock or float it like a toolbar.</li>
+</ul>
+
+<div class="tip"><strong>Tip:</strong> prefer modifier+key combos (Ctrl/Alt/Shift + a key) and avoid shortcuts already used by Krita actions, or they won't fire.</div>
+
+<h2>Technical notes</h2>
+<ul>
+  <li>Shortcuts use an app-level key event filter (not <code>QShortcut</code>), which is reliable inside Krita.</li>
+  <li>The action catalog is enumerated at runtime with <code>Krita.instance().actions()</code>, so you can pick any action.</li>
+  <li>Your list configuration is stored in <code>config.json</code> inside the plugin folder (not tracked by git).</li>
+</ul>
+</body>
+</html>

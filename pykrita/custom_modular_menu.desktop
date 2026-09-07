@@ -3,5 +3,6 @@ Type=Service
 ServiceTypes=Krita/PythonPlugin
 X-KDE-Library=custom_modular_menu
 X-Python-2-Compatible=false
+X-Krita-Manual=manual.html
 Name=Custom Modular Menu
-Comment=Custom multi-list action menu: cursor popup, Tools menu, Docker panel.
+Comment=Custom multi-list action menu: pop at the cursor, Tools submenu, or a dockable panel. Edit lists and bind hotkeys in the editor.
