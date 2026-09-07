@@ -87,15 +87,7 @@ class ListMenuDialog(QDialog):
         root = QVBoxLayout(self)
         root.setSpacing(10)
 
-        popup_box = QGroupBox("Menu popup shortcut (whole list menu)")
-        popup_row = QHBoxLayout(popup_box)
-        self.popup_edit = QKeySequenceEdit(self.popup_shortcut)
-        self.popup_edit.setToolTip("Press a key combination here to bind the whole menu popup.")
-        popup_row.addWidget(self.popup_edit, 1)
-        popup_clear = QPushButton("Clear")
-        popup_clear.clicked.connect(lambda: self.popup_edit.setKeySequence(QKeySequence("")))
-        popup_row.addWidget(popup_clear)
-        root.addWidget(popup_box)
+        # (whole-menu popup trigger is bound via Krita's Keyboard Shortcuts editor)
 
         body = QHBoxLayout()
         body.setSpacing(12)
@@ -489,7 +481,6 @@ class ListMenuDialog(QDialog):
 
     # ---------- Save ----------
     def accept(self):
-        popup = self.popup_edit.keySequence().toString(QKeySequence.PortableText)
-        save_config(popup, self.lists)
+        save_config(self.popup_shortcut, self.lists)
         notify_refresh()
         super().accept()

@@ -27,7 +27,7 @@ from PyQt5.QtWidgets import (
     QTextEdit,
 )
 
-from .config import load_lists, load_popup_shortcut, notify_refresh, register_refresh
+from .config import load_lists, notify_refresh, register_refresh
 
 # Keys that on their own are modifiers, not real shortcuts
 _MODIFIER_KEYS = (
@@ -127,11 +127,10 @@ class ListMenuExtension(Extension):
     # ---------- Dynamic shortcuts (event filter based) ----------
     def _register_shortcuts(self):
         # Rebuild the shortcut lookup map from current config.
-        # The app-level event filter stays installed; only the map changes.
+        # Whole-menu popup trigger is bound via Krita's own Keyboard Shortcuts
+        # editor (the custom_modular_menu_popup action), so only per-list keys
+        # are registered here. The app-level event filter stays installed.
         self._shortcut_map = {}
-        popup = load_popup_shortcut()
-        if popup:
-            self._shortcut_map[popup] = self.pop_menu
         for i, lst in enumerate(load_lists()):
             key = lst.get("shortcut", "")
             if key:
