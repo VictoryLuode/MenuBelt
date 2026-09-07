@@ -119,8 +119,8 @@ class ListMenuDialog(QDialog):
         body = QHBoxLayout()
         body.setSpacing(12)
 
-        # Left: top-level lists + per-list popup shortcut
-        left_box = QGroupBox("Lists")
+        # Left: top-level menus + per-menu popup shortcut
+        left_box = QGroupBox("Menu List")
         left = QVBoxLayout(left_box)
         self.sidebar = QListWidget()
         self.sidebar.currentRowChanged.connect(self._on_switch_list)
@@ -148,44 +148,20 @@ class ListMenuDialog(QDialog):
         left_box.setMinimumWidth(200)
         body.addWidget(left_box, 1)
 
-        # Middle: current menu editing
-        right_box = QGroupBox()
-        right = QVBoxLayout(right_box)
+        # Current Menu (its own panel, right of Menu List)
+        current_box = QGroupBox("Current Menu")
+        cm = QVBoxLayout(current_box)
         self.crumb_row = QHBoxLayout()
-        right.addLayout(self.crumb_row)
+        cm.addLayout(self.crumb_row)
         self.list_title = QLabel()
-        right.addWidget(self.list_title)
-
-        search_row = QHBoxLayout()
-        search_row.addWidget(QLabel("Available actions:"))
-        self.search_box = QLineEdit()
-        self.search_box.setPlaceholderText("Search name or id…")
-        self.search_box.textChanged.connect(self._reload_available)
-        search_row.addWidget(self.search_box)
-        right.addLayout(search_row)
-
-        editor = QHBoxLayout()
-        editor.setSpacing(8)
-        avail_col = QVBoxLayout()
-        self.avail_list = QListWidget()
-        self.avail_list.itemDoubleClicked.connect(lambda _i: self._add_selected())
-        avail_col.addWidget(self.avail_list)
-        add_btn = QPushButton("Add →")
-        add_btn.setToolTip("Add the selected action (or double-click it)")
-        add_btn.clicked.connect(self._add_selected)
-        avail_col.addWidget(add_btn)
-        editor.addLayout(avail_col, 1)
-
-        items_col = QVBoxLayout()
-        items_col.addWidget(QLabel(
-            "Current items (drag to reorder; enter submenu / rename / edit by double-click):"))
+        cm.addWidget(self.list_title)
         self.items_list = QListWidget()
         self.items_list.itemDoubleClicked.connect(self._on_item_double_click)
         self.items_list.setDragDropMode(QAbstractItemView.InternalMove)
         self.items_list.setDefaultDropAction(Qt.MoveAction)
         self.items_list.setSelectionMode(QAbstractItemView.SingleSelection)
         self.items_list.model().rowsMoved.connect(self._sync_items_order)
-        items_col.addWidget(self.items_list)
+        cm.addWidget(self.items_list)
         btn_row = QHBoxLayout()
         for label, slot in (("Add Submenu", self._add_submenu),
                             ("Add Script", self._add_script),
@@ -196,17 +172,33 @@ class ListMenuDialog(QDialog):
             b = QPushButton(label)
             b.clicked.connect(slot)
             btn_row.addWidget(b)
-        items_col.addLayout(btn_row)
-        editor.addLayout(items_col, 1)
-        right.addLayout(editor)
-        body.addWidget(right_box, 3)
+        cm.addLayout(btn_row)
+        body.addWidget(current_box, 2)
 
-        # Right: live preview
+        # Available actions (pick commands to add)
+        avail_box = QGroupBox("Available actions")
+        av = QVBoxLayout(avail_box)
+        search_row = QHBoxLayout()
+        self.search_box = QLineEdit()
+        self.search_box.setPlaceholderText("Search name or id…")
+        self.search_box.textChanged.connect(self._reload_available)
+        search_row.addWidget(self.search_box)
+        av.addLayout(search_row)
+        self.avail_list = QListWidget()
+        self.avail_list.itemDoubleClicked.connect(lambda _i: self._add_selected())
+        av.addWidget(self.avail_list)
+        add_btn = QPushButton("Add →")
+        add_btn.setToolTip("Add the selected action (or double-click it)")
+        add_btn.clicked.connect(self._add_selected)
+        av.addWidget(add_btn)
+        body.addWidget(avail_box, 2)
+
+        # Preview (right): only the current menu
         preview_box = QGroupBox("Preview")
         pv = QVBoxLayout(preview_box)
         self.preview_tree = QTreeWidget()
-        self.preview_tree.setHeaderLabels(["Menu structure"])
-        self.preview_tree.setMinimumWidth(200)
+        self.preview_tree.setHeaderLabels(["Current menu"])
+        self.preview_tree.setMinimumWidth(180)
         pv.addWidget(self.preview_tree)
         body.addWidget(preview_box, 1)
 
@@ -545,11 +537,13 @@ class ListMenuDialog(QDialog):
 
     # ---------- Live preview ----------
     def _render_preview(self):
+        """Preview only the currently selected menu (with its nested submenus)."""
         self.preview_tree.clear()
-        for lst in self.lists:
-            top = QTreeWidgetItem([lst["name"]])
+        node = self._cur_menu()
+        if node.get("name"):
+            top = QTreeWidgetItem([node["name"]])
             self.preview_tree.addTopLevelItem(top)
-            self._preview_fill(top, lst)
+            self._preview_fill(top, node)
         self.preview_tree.expandAll()
 
     def _preview_fill(self, parent_item, node):
