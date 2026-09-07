@@ -145,7 +145,7 @@ class ListMenuDialog(QDialog):
         self.crumb_row = QHBoxLayout()
         header_row.addLayout(self.crumb_row)
         header_row.addStretch()
-        header_row.addWidget(QLabel("Popup shortcut:"))
+        header_row.addWidget(QLabel("Shortcut:"))
         self.list_sc_edit = QKeySequenceEdit()
         self.list_sc_edit.setToolTip("Press a key combination to pop this menu at the cursor.")
         self.list_sc_edit.keySequenceChanged.connect(self._on_list_shortcut_changed)
