@@ -25,7 +25,6 @@ from PyQt5.QtWidgets import (
     QListWidgetItem,
     QMessageBox,
     QPushButton,
-    QTextEdit,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -49,6 +48,7 @@ TYPE_CMD = "cmd"
 TYPE_MENU = "menu"
 TYPE_SCRIPT = "script"
 TYPE_BLEND = "blend"
+TYPE_CAT = "category"
 
 
 class AddSource:
@@ -69,10 +69,7 @@ class AddSource:
 
 def _enum_actions(dlg, needle):
     existing = dlg._existing_cmd_ids()
-    cat = dlg._action_category_filter()
     for action_id, text in dlg._catalog.items():
-        if cat and dlg._action_categories.get(action_id) != cat:
-            continue
         if needle and needle not in text.lower() and needle not in action_id.lower():
             continue
         if action_id in existing:
@@ -253,32 +250,28 @@ class ListMenuDialog(QDialog):
         self.add_type.addItems([s.label for s in self._sources])
         self.add_type.currentIndexChanged.connect(lambda _i: self._on_add_type_changed())
         av.addWidget(self.add_type)
-        self.cat_combo = QComboBox()
-        self.cat_combo.addItem("All actions", None)
-        for c in self._categories:
-            self.cat_combo.addItem(c, c)
-        self.cat_combo.currentIndexChanged.connect(lambda _i: self._reload_available())
-        av.addWidget(self.cat_combo)
         search_row = QHBoxLayout()
         self.search_box = QLineEdit()
         self.search_box.setPlaceholderText("Search…")
         self.search_box.textChanged.connect(self._reload_available)
         search_row.addWidget(self.search_box)
         av.addLayout(search_row)
-        self.avail_list = QListWidget()
-        self.avail_list.itemDoubleClicked.connect(lambda _i: self._add_selected())
-        av.addWidget(self.avail_list)
+        self.add_tree = QTreeWidget()
+        self.add_tree.setHeaderHidden(True)
+        self.add_tree.setIndentation(14)
+        self.add_tree.itemDoubleClicked.connect(self._on_tree_double_click)
+        av.addWidget(self.add_tree, 1)  # tree takes the remaining space
         add_btn = QPushButton("Add")
         add_btn.setToolTip("Add the selected item (or double-click it)")
         add_btn.clicked.connect(self._add_selected)
         av.addWidget(add_btn)
-        self.detail_box = QTextEdit()
-        self.detail_box.setReadOnly(True)
-        self.detail_box.setMinimumHeight(96)
-        self.detail_box.setPlaceholderText("Select an item to see its API details")
-        self.detail_box.setProperty("class", "detailbox")
+        self.detail_box = QLabel()
+        self.detail_box.setWordWrap(True)
+        self.detail_box.setMinimumHeight(40)
+        self.detail_box.setMaximumHeight(120)
+        self.detail_box.setTextInteractionFlags(Qt.TextSelectableByMouse)
         av.addWidget(self.detail_box)
-        self.avail_list.itemSelectionChanged.connect(self._on_avail_selection_changed)
+        self.add_tree.itemSelectionChanged.connect(self._on_avail_selection_changed)
         body.addWidget(avail_box, 2)
 
         # Preview (right): only the current menu
@@ -489,12 +482,12 @@ class ListMenuDialog(QDialog):
         return out
 
     def _on_avail_selection_changed(self):
-        self._show_item_details(self.avail_list.currentItem())
+        self._show_item_details(self.add_tree.currentItem())
 
     def _show_item_details(self, item):
         """Fill the bottom detail box with API info for the selected add item."""
-        if item is None:
-            self.detail_box.setPlainText("")
+        if item is None or item.data(ROLE_TYPE) == TYPE_CAT:
+            self.detail_box.setText("")
             return
         src = self._current_source()
         payload = item.data(ROLE_TOKEN)
@@ -516,16 +509,16 @@ class ListMenuDialog(QDialog):
             if shortcut:
                 lines.append("shortcut: %s" % shortcut)
             lines.append("API: Krita.instance().action('%s').trigger()" % payload)
-            self.detail_box.setPlainText("\n".join(lines))
+            self.detail_box.setText("\n".join(lines))
         elif item.data(ROLE_TYPE) == TYPE_BLEND and payload:
             label = dict(LAYER_BLEND_MODES).get(payload, payload)
-            self.detail_box.setPlainText(
+            self.detail_box.setText(
                 "Layer blend mode: %s\n"
                 "id: %s\n"
                 "API: Krita.instance().activeDocument().activeNode()\n"
                 "     .setBlendingMode('%s')" % (label, payload, payload))
         else:
-            self.detail_box.setPlainText("")
+            self.detail_box.setText("")
 
     def _current_source(self):
         idx = self.add_type.currentIndex()
@@ -534,25 +527,36 @@ class ListMenuDialog(QDialog):
         return None
 
     def _on_add_type_changed(self):
-        src = self._current_source()
-        # Category picker only makes sense for Krita Actions; grey it out otherwise.
-        self.cat_combo.setEnabled(src is not None and src.key == "actions")
         self._reload_available()
 
-    def _action_category_filter(self):
-        return self.cat_combo.currentData()
-
     def _reload_available(self):
-        self.avail_list.clear()
+        self.add_tree.clear()
         src = self._current_source()
         if src is None:
             return
         needle = self.search_box.text().strip().lower()
-        for payload, text in src.enum_fn(self, needle):
-            entry = QListWidgetItem(text)
-            entry.setData(ROLE_TOKEN, payload)
-            entry.setData(ROLE_TYPE, src.item_type)
-            self.avail_list.addItem(entry)
+        if src.key == "actions":
+            # Group by Krita's ready-made categories -> tree of category > action.
+            groups = {}
+            for action_id, text in src.enum_fn(self, needle):
+                cat = self._action_categories.get(action_id) or "Other"
+                groups.setdefault(cat, []).append((action_id, text))
+            for cat in sorted(groups):
+                parent = QTreeWidgetItem([cat])
+                parent.setData(0, ROLE_TYPE, TYPE_CAT)
+                self.add_tree.addTopLevelItem(parent)
+                for action_id, text in groups[cat]:
+                    leaf = QTreeWidgetItem([text])
+                    leaf.setData(0, ROLE_TOKEN, action_id)
+                    leaf.setData(0, ROLE_TYPE, TYPE_CMD)
+                    parent.addChild(leaf)
+        else:
+            for payload, text in src.enum_fn(self, needle):
+                leaf = QTreeWidgetItem([text])
+                leaf.setData(0, ROLE_TOKEN, payload)
+                leaf.setData(0, ROLE_TYPE, src.item_type)
+                self.add_tree.addTopLevelItem(leaf)
+        self.add_tree.expandAll()
 
     def _sync_items_order(self, *_):
         items = self._cur_items()
@@ -589,14 +593,22 @@ class ListMenuDialog(QDialog):
             self._render_current()
 
     def _add_selected(self):
-        entry = self.avail_list.currentItem()
+        entry = self.add_tree.currentItem()
         if entry is None or not self.path:
+            return
+        # Category headers are not addable.
+        if entry.data(ROLE_TYPE) == TYPE_CAT:
             return
         src = self._current_source()
         if src is None:
             return
         src.add_fn(self, entry.data(ROLE_TOKEN))
         self._reload_available()  # refresh dedup after adding
+
+    def _on_tree_double_click(self, item, _column):
+        # Double-click a leaf to add it; a category header just expands/collapses.
+        if item is not None and item.data(ROLE_TYPE) != TYPE_CAT:
+            self._add_selected()
 
     def _add_submenu(self):
         if not self.path:
