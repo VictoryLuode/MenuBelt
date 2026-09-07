@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Service
+ServiceTypes=Krita/PythonPlugin
+X-KDE-Library=custom_modular_menu
+X-Python-2-Compatible=false
+Name=Custom Modular Menu
+Comment=Custom multi-list action menu: cursor popup, Tools menu, Docker panel.

@@ -1,4 +1,5 @@
-"""Quick List Menu — Docker 面板：把多列表动作做成可点击按钮，可停靠/浮动当工具栏."""
+"""Custom Modular Menu (CMM) - Docker panel: multi-list actions as clickable
+buttons, dockable / floatable like a toolbar."""
 
 from krita import DockWidget, DockWidgetFactory, DockWidgetFactoryBase, Krita
 from PyQt5.QtCore import Qt
@@ -15,11 +16,11 @@ from .config import load_lists, notify_refresh, register_refresh
 
 
 class ListMenuDocker(DockWidget):
-    """显示多列表动作按钮。点按钮直接触发对应 Krita action."""
+    """Display multi-list action buttons. Clicking one triggers the Krita action."""
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Quick List Menu")
+        self.setWindowTitle("Custom Modular Menu")
         register_refresh(self.rebuild)
         self.rebuild()
 
@@ -27,15 +28,15 @@ class ListMenuDocker(DockWidget):
         pass
 
     def rebuild(self):
-        """从当前配置重建面板内容."""
+        """Rebuild the panel content from current config."""
         container = QWidget(self)
         outer = QVBoxLayout(container)
         outer.setContentsMargins(6, 6, 6, 6)
         outer.setSpacing(4)
 
         header = QHBoxLayout()
-        edit_btn = QPushButton("编辑列表…")
-        edit_btn.setToolTip("配置快捷列表菜单")
+        edit_btn = QPushButton("Edit…")
+        edit_btn.setToolTip("Configure Custom Modular Menu")
         edit_btn.clicked.connect(self._open_editor)
         header.addWidget(edit_btn)
         header.addStretch()
@@ -95,15 +96,14 @@ class ListMenuDocker(DockWidget):
             act.trigger()
 
     def _open_editor(self):
-        from .dialog import ListMenuDialog  # 延迟导入，避免循环依赖
+        from .dialog import ListMenuDialog  # lazy import to avoid circular dependency
         dlg = ListMenuDialog(self)
         dlg.exec_()
-        # dialog.accept() 内已调用 notify_refresh()，这里兜底
+        # dialog.accept() already calls notify_refresh(); this is a fallback
         notify_refresh()
 
 
-# —— 注册 docker（pykrita 加载即生效）——
-# 注意：创建 factory 即触发实例化；实例里再 register_refresh(self.rebuild)
+# -- Docker factory registration (runs when pykrita loads the package) --
 _docker_factory = DockWidgetFactory(
-    "quick_list_menu_docker", DockWidgetFactoryBase.DockRight, ListMenuDocker)
+    "custom_modular_menu_docker", DockWidgetFactoryBase.DockRight, ListMenuDocker)
 Krita.instance().addDockWidgetFactory(_docker_factory)

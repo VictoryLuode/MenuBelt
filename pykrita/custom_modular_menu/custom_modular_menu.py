@@ -1,8 +1,8 @@
-"""Quick List Menu — 核心：打造三处同步的多列表入口。
+"""Custom Modular Menu (CMM) - core: builds three synchronised multi-list entries.
 
-1. Tools > Quick List Menu 子菜单（列表→项）
-2. 光标弹菜单（复用同一个 QMenu，绑定快捷键触发）
-3. 编辑对话框（改完多列表配置后所有入口自动刷新）
+1. Tools > Custom Modular Menu submenu (lists -> items)
+2. Cursor popup menu (reuses the same QMenu, bound to a shortcut)
+3. Edit dialog (saving changes refreshes every entry automatically)
 """
 
 from krita import Extension, Krita
@@ -15,7 +15,7 @@ from .config import load_lists, notify_refresh, register_refresh
 class ListMenuExtension(Extension):
     def __init__(self, parent):
         super().__init__(parent)
-        # 每个窗口一套 {root_action, menu, edit_action}
+        # One entry per window: {window, root_action, menu}
         self._windows = []
         register_refresh(self._rebuild_all)
 
@@ -23,21 +23,19 @@ class ListMenuExtension(Extension):
         pass
 
     def createActions(self, window):
-        app = Krita.instance()
-
-        # 触发器（键盘绑定，进快捷键编辑器，不在菜单里显示）
+        # Trigger (keyboard bound, lives in Keyboard Shortcuts, hidden from menus)
         popup_action = window.createAction(
-            "quick_list_menu_popup", "弹出快捷列表菜单", "")
+            "custom_modular_menu_popup", "Pop Up Custom List", "")
         popup_action.triggered.connect(self.pop_menu)
 
-        # 编辑器 action（会作为 Tools>Quick List Menu 底部的一项显示）
+        # Editor action (shown as a footer item of the Tools submenu)
         edit_action = window.createAction(
-            "quick_list_menu_edit", "编辑快捷列表菜单…", "")
+            "custom_modular_menu_edit", "Edit Custom List", "")
         edit_action.triggered.connect(self.open_editor)
 
-        # Tools > Quick List Menu 根菜单
+        # Tools > Custom Modular Menu root
         root_action = window.createAction(
-            "quick_list_menu", "Quick List Menu", "tools")
+            "custom_modular_menu", "Custom Modular Menu", "tools")
         menu = QMenu(window.qwindow())
         root_action.setMenu(menu)
 
@@ -49,13 +47,13 @@ class ListMenuExtension(Extension):
         })
         self._rebuild(window)
 
-    # ---------- 构建 / 刷新 ----------
+    # ---------- Build / refresh ----------
     def _rebuild_all(self):
         for entry in self._windows:
             self._rebuild(entry["window"])
 
     def _rebuild(self, window):
-        """按当前配置重建某个窗口的 Tools>Quick List Menu 子菜单."""
+        """Rebuild the Tools>Custom Modular Menu submenu from current config."""
         for entry in self._windows:
             if entry["window"] is not window:
                 continue
@@ -74,15 +72,9 @@ class ListMenuExtension(Extension):
             menu.addAction(entry["edit_action"])
             break
 
-    # ---------- 行为 ----------
-    def _parent_widget(self, window):
-        try:
-            return window.qwindow()
-        except RuntimeError:
-            return None
-
+    # ---------- Behaviour ----------
     def pop_menu(self, *_):
-        """在当前活动窗口的光标处弹出同一个多列表菜单."""
+        """Open the same multi-list menu under the cursor of the active window."""
         active = Krita.instance().activeWindow()
         if active is not None:
             try:
@@ -97,11 +89,11 @@ class ListMenuExtension(Extension):
             self._windows[0]["menu"].exec_(QCursor.pos())
 
     def open_editor(self, *_):
-        from .dialog import ListMenuDialog  # 延迟导入，避免循环依赖
+        from .dialog import ListMenuDialog  # lazy import to avoid circular dependency
         dlg = ListMenuDialog()
-        # 保存时 dialog 内部会 notify_refresh()；这里仅在无窗口时兜底刷新
+        # dialog.accept() already calls notify_refresh()
         dlg.exec_()
 
 
-# —— 注册（pykrita 加载即生效）——
+# -- Registration (runs when pykrita loads the package) --
 Krita.instance().addExtension(ListMenuExtension(Krita.instance()))

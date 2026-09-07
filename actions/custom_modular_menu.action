@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ActionCollection version="2" name="Scripts">
     <Actions category="Scripts">
-        <text>Quick List Menu</text>
+        <text>Custom Modular Menu</text>
 
-        <Action name="quick_list_menu_popup">
+        <Action name="custom_modular_menu_popup">
         <icon></icon>
-        <text>弹出快捷列表菜单</text>
+        <text>Pop Up Custom List</text>
         <whatsThis></whatsThis>
-        <toolTip>在光标处打开自定义快捷列表菜单</toolTip>
+        <toolTip>Open the custom list menu at the cursor</toolTip>
         <iconText></iconText>
         <activationFlags>0</activationFlags>
         <activationConditions>0</activationConditions>
@@ -16,11 +16,11 @@
         <statusTip></statusTip>
         </Action>
 
-        <Action name="quick_list_menu_edit">
+        <Action name="custom_modular_menu_edit">
         <icon></icon>
-        <text>编辑快捷列表菜单…</text>
+        <text>Edit Custom List</text>
         <whatsThis></whatsThis>
-        <toolTip>配置快捷列表菜单包含的动作与顺序</toolTip>
+        <toolTip>Configure the lists and their actions</toolTip>
         <iconText></iconText>
         <activationFlags>0</activationFlags>
         <activationConditions>0</activationConditions>

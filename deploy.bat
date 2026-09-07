@@ -1,7 +1,7 @@
 @echo off
-rem 把本仓库的插件文件部署到 Krita 资源目录
+rem Deploy this repo's plugin files to the Krita resource directory.
 set RES=D:\home\Documents\Krita\KritaResource
-copy /y pykrita\quick_list_menu.desktop "%RES%\pykrita\" >nul
-xcopy /s /y /e /i pykrita\quick_list_menu "%RES%\pykrita\quick_list_menu" >nul
-copy /y actions\quick_list_menu.action "%RES%\actions\" >nul
+copy /y pykrita\custom_modular_menu.desktop "%RES%\pykrita\" >nul
+xcopy /s /y /e /i pykrita\custom_modular_menu "%RES%\pykrita\custom_modular_menu" >nul
+copy /y actions\custom_modular_menu.action "%RES%\actions\" >nul
 echo Deployed.

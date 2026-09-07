@@ -1,4 +1,5 @@
-"""Quick List Menu — 多列表编辑对话框：管理列表名 + 每个列表包含的动作与顺序."""
+"""Custom Modular Menu (CMM) - multi-list editor dialog:
+manage list names, plus the actions and order inside each list."""
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
@@ -18,11 +19,11 @@ from .config import catalog_actions, load_lists, notify_refresh, save_lists
 
 
 class ListMenuDialog(QDialog):
-    """多列表编辑器。左侧=列表管理，右侧=当前列表的动作顺序."""
+    """Multi-list editor. Left = list management, right = actions/order of selected list."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("编辑快捷列表菜单")
+        self.setWindowTitle("Edit Custom Modular Menu")
         self.resize(860, 540)
 
         self._catalog = dict(catalog_actions())
@@ -41,29 +42,29 @@ class ListMenuDialog(QDialog):
         body = QHBoxLayout()
         body.setSpacing(12)
 
-        # 左：列表管理
+        # Left: list management
         left = QVBoxLayout()
-        left.addWidget(QLabel("列表:"))
+        left.addWidget(QLabel("Lists:"))
         self.sidebar = QListWidget()
         self.sidebar.currentRowChanged.connect(self._on_switch_list)
         left.addWidget(self.sidebar)
-        for label, slot in (("新建列表", self._new_list),
-                            ("重命名", self._rename_list),
-                            ("删除列表", self._delete_list)):
+        for label, slot in (("New List", self._new_list),
+                            ("Rename", self._rename_list),
+                            ("Delete", self._delete_list)):
             b = QPushButton(label)
             b.clicked.connect(slot)
             left.addWidget(b)
         body.addLayout(left, 1)
 
-        # 右：当前列表项编辑
+        # Right: selected list items
         right = QVBoxLayout()
         self.list_title = QLabel()
         right.addWidget(self.list_title)
 
         search_row = QHBoxLayout()
-        search_row.addWidget(QLabel("可用动作:"))
+        search_row.addWidget(QLabel("Available actions:"))
         self.search_box = QLineEdit()
-        self.search_box.setPlaceholderText("搜索名称或 id…")
+        self.search_box.setPlaceholderText("Search name or id…")
         self.search_box.textChanged.connect(self._reload_available)
         search_row.addWidget(self.search_box)
         right.addLayout(search_row)
@@ -75,18 +76,18 @@ class ListMenuDialog(QDialog):
         self.avail_list = QListWidget()
         self.avail_list.itemDoubleClicked.connect(lambda _i: self._add_selected())
         avail_col.addWidget(self.avail_list)
-        add_btn = QPushButton("添加 →")
+        add_btn = QPushButton("Add →")
         add_btn.clicked.connect(self._add_selected)
         avail_col.addWidget(add_btn)
         editor.addLayout(avail_col, 1)
 
         items_col = QVBoxLayout()
-        items_col.addWidget(QLabel("当前列表项(顺序=菜单顺序):"))
+        items_col.addWidget(QLabel("Current items (order = menu order):"))
         self.items_list = QListWidget()
         items_col.addWidget(self.items_list)
         btn_row = QHBoxLayout()
-        for label, slot in (("↑", self._move_up), ("↓", self._move_down),
-                            ("移除", self._remove_selected)):
+        for label, slot in (("Up", self._move_up), ("Down", self._move_down),
+                            ("Remove", self._remove_selected)):
             b = QPushButton(label)
             b.clicked.connect(slot)
             btn_row.addWidget(b)
@@ -100,15 +101,15 @@ class ListMenuDialog(QDialog):
 
         bottom = QHBoxLayout()
         bottom.addStretch()
-        ok = QPushButton("确定")
+        ok = QPushButton("OK")
         ok.clicked.connect(self.accept)
-        cancel = QPushButton("取消")
+        cancel = QPushButton("Cancel")
         cancel.clicked.connect(self.reject)
         bottom.addWidget(ok)
         bottom.addWidget(cancel)
         root.addLayout(bottom)
 
-    # ---------- 列表管理 ----------
+    # ---------- List management ----------
     def _reload_sidebar(self):
         self.sidebar.blockSignals(True)
         self.sidebar.clear()
@@ -119,19 +120,19 @@ class ListMenuDialog(QDialog):
         if 0 <= self.current < self.sidebar.count():
             self.sidebar.setCurrentRow(self.current)
         self.sidebar.blockSignals(False)
-        self.list_title.setText(f"当前列表: {self._name()}")
+        self.list_title.setText(f"Current list: {self._name()}")
 
     def _on_switch_list(self, row):
         if 0 <= row < len(self.lists):
             self.current = row
             self._render_items()
-            self.list_title.setText(f"当前列表: {self._name()}")
+            self.list_title.setText(f"Current list: {self._name()}")
 
     def _name(self):
         return self.lists[self.current]["name"] if self.lists else ""
 
     def _new_list(self):
-        name, ok = QInputDialog.getText(self, "新建列表", "列表名称:")
+        name, ok = QInputDialog.getText(self, "New List", "List name:")
         if not ok or not name.strip():
             return
         self.lists.append({"name": name.strip(), "items": []})
@@ -143,7 +144,7 @@ class ListMenuDialog(QDialog):
         if not self.lists:
             return
         new_name, ok = QInputDialog.getText(
-            self, "重命名列表", "新名称:", text=self._name())
+            self, "Rename List", "New name:", text=self._name())
         if ok and new_name.strip():
             self.lists[self.current]["name"] = new_name.strip()
             self._reload_sidebar()
@@ -152,13 +153,13 @@ class ListMenuDialog(QDialog):
         if not self.lists:
             return
         if QMessageBox.question(
-                self, "删除列表", f"确定删除列表「{self._name()}」?") == QMessageBox.Yes:
+                self, "Delete List", f"Delete the list \u201c{self._name()}\u201d?") == QMessageBox.Yes:
             self.lists.pop(self.current)
             self.current = max(0, min(self.current, len(self.lists) - 1))
             self._reload_sidebar()
             self._render_items()
 
-    # ---------- 当前列表项 ----------
+    # ---------- Selected list items ----------
     def _cur_items(self):
         return self.lists[self.current]["items"] if self.lists else []
 
@@ -180,7 +181,7 @@ class ListMenuDialog(QDialog):
             if needle and needle not in text.lower() and needle not in action_id.lower():
                 continue
             if action_id in existing:
-                continue  # 已添加的从候选里隐藏，避免重复
+                continue  # hide already-added actions to avoid duplicates
             item = QListWidgetItem(f"{text}   [{action_id}]")
             item.setData(Qt.UserRole, action_id)
             self.avail_list.addItem(item)
@@ -221,7 +222,7 @@ class ListMenuDialog(QDialog):
         self._render_items()
         self.items_list.setCurrentRow(row + 1)
 
-    # ---------- 保存 ----------
+    # ---------- Save ----------
     def accept(self):
         save_lists(self.lists)
         notify_refresh()
