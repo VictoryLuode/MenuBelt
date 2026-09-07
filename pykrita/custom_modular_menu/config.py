@@ -1,5 +1,12 @@
 """Custom Modular Menu (CMM) - config layer: multi-list JSON persistence,
-full action catalog enumeration, per-list shortcuts, and refresh notification."""
+full action catalog enumeration, per-item custom labels, per-list shortcuts,
+and refresh notification.
+
+Item storage format (backward compatible):
+- no custom label  -> a plain string action id:  "mirror_canvas"
+- custom label     -> a dict: {"id": "mirror_canvas", "label": "Mirror"}
+After loading, items are normalised to dicts {"id", "label"} internally.
+"""
 
 import json
 import os
@@ -65,23 +72,62 @@ DEFAULT_LISTS = [
 DEFAULT_POPUP_SHORTCUT = ""  # whole-menu popup trigger key
 
 
+def _clean_items(items):
+    """Normalise raw items into [{"id", "label"}] (string = no custom label)."""
+    out = []
+    for it in items if isinstance(items, list) else []:
+        if isinstance(it, str) and it:
+            out.append({"id": it, "label": ""})
+        elif isinstance(it, dict) and it.get("id"):
+            out.append({"id": it["id"], "label": it.get("label", "") or ""})
+        elif isinstance(it, (list, tuple)) and len(it) >= 1 and it[0]:
+            out.append({"id": it[0], "label": it[1] if len(it) > 1 else ""})
+    return out
+
+
 def _clean_lists(lists):
-    """Normalise raw json lists into [{name, shortcut, items}]."""
+    """Normalise raw json lists into [{name, shortcut, items}]. Items are dicts."""
     clean = []
     for lst in lists if isinstance(lists, list) else []:
         if not isinstance(lst, dict) or not lst.get("name"):
             continue
-        items = lst.get("items", [])
         clean.append({
             "name": lst["name"],
             "shortcut": lst.get("shortcut", "") or "",
-            "items": list(items) if isinstance(items, list) else [],
+            "items": _clean_items(lst.get("items", [])),
         })
     return clean
 
 
+def _serialize_items(items):
+    """Serialize items (dicts) back to compact form: plain id or {"id","label"}."""
+    out = []
+    for it in items if isinstance(items, list) else []:
+        if not isinstance(it, dict) or not it.get("id"):
+            continue
+        label = it.get("label", "") or ""
+        if label:
+            out.append({"id": it["id"], "label": label})
+        else:
+            out.append(it["id"])
+    return out
+
+
+def _serialize_lists(lists):
+    out = []
+    for lst in lists if isinstance(lists, list) else []:
+        if not isinstance(lst, dict):
+            continue
+        out.append({
+            "name": lst.get("name", ""),
+            "shortcut": lst.get("shortcut", "") or "",
+            "items": _serialize_items(lst.get("items", [])),
+        })
+    return out
+
+
 def load_config():
-    """Return (popup_shortcut, lists). Falls back to defaults on missing/empty."""
+    """Return (popup_shortcut, lists). Lists items are [{"id","label"}]. Falls back to defaults."""
     try:
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -95,7 +141,7 @@ def load_config():
 
 
 def load_lists():
-    """Return [{name, shortcut, items}, ...] only."""
+    """Return [{name, shortcut, items:[{"id","label"}]}, ...] only."""
     return load_config()[1]
 
 
@@ -105,12 +151,12 @@ def load_popup_shortcut():
 
 
 def save_config(popup_shortcut, lists):
-    """Write popup_shortcut + multi-list model to JSON."""
+    """Write popup_shortcut + multi-list model to JSON (compact item form)."""
     try:
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump({
                 "popup_shortcut": popup_shortcut or "",
-                "lists": lists,
+                "lists": _serialize_lists(lists),
             }, f, ensure_ascii=False, indent=2)
     except OSError as e:
         print(f"[CMM] failed to save config: {e}")

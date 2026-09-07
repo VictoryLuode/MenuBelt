@@ -107,18 +107,20 @@ class ListMenuDialog(QDialog):
         editor.addLayout(avail_col, 1)
 
         items_col = QVBoxLayout()
-        items_col.addWidget(QLabel("Current items (order = menu order):"))
+        items_col.addWidget(QLabel("Current items (order = menu order; double-click to rename):"))
         self.items_list = QListWidget()
+        self.items_list.itemDoubleClicked.connect(lambda _i: self._rename_item())
         items_col.addWidget(self.items_list)
         btn_row = QHBoxLayout()
-        for label, slot in (("Up", self._move_up), ("Down", self._move_down),
+        for label, slot in (("Rename", self._rename_item),
+                            ("Up", self._move_up),
+                            ("Down", self._move_down),
                             ("Remove", self._remove_selected)):
             b = QPushButton(label)
             b.clicked.connect(slot)
             btn_row.addWidget(b)
         items_col.addLayout(btn_row)
         editor.addLayout(items_col, 1)
-
         right.addLayout(editor)
         body.addLayout(right, 3)
 
@@ -213,43 +215,46 @@ class ListMenuDialog(QDialog):
 
     def _render_items(self):
         self.items_list.clear()
-        for action_id in self._cur_items():
-            text = self._catalog.get(action_id, action_id)
-            item = QListWidgetItem(text)
-            item.setData(Qt.UserRole, action_id)
-            item.setToolTip(f"{text}  [{action_id}]")
-            self.items_list.addItem(item)
+        items = self._cur_items()
+        for idx, it in enumerate(items):
+            aid = it["id"]
+            label = it.get("label", "")
+            text = label or self._catalog.get(aid, aid)
+            entry = QListWidgetItem(text)
+            entry.setData(Qt.UserRole, idx)
+            entry.setData(Qt.UserRole + 1, aid)
+            entry.setToolTip(f"{text}  [{aid}]")
+            self.items_list.addItem(entry)
         self._reload_available()
 
     def _reload_available(self):
         self.avail_list.clear()
         needle = self.search_box.text().strip().lower()
-        existing = self._cur_items()
+        existing = {it["id"] for it in self._cur_items()}
         for action_id, text in self._catalog.items():
             if needle and needle not in text.lower() and needle not in action_id.lower():
                 continue
             if action_id in existing:
                 continue  # hide already-added actions to avoid duplicates
-            item = QListWidgetItem(f"{text}   [{action_id}]")
-            item.setData(Qt.UserRole, action_id)
-            self.avail_list.addItem(item)
+            entry = QListWidgetItem(f"{text}   [{action_id}]")
+            entry.setData(Qt.UserRole, action_id)
+            self.avail_list.addItem(entry)
 
     def _add_selected(self):
-        item = self.avail_list.currentItem()
-        if item is None or not self.lists:
+        entry = self.avail_list.currentItem()
+        if entry is None or not self.lists:
             return
-        action_id = item.data(Qt.UserRole)
-        if action_id not in self._cur_items():
-            self.lists[self.current]["items"].append(action_id)
+        action_id = entry.data(Qt.UserRole)
+        existing = {it["id"] for it in self._cur_items()}
+        if action_id not in existing:
+            self.lists[self.current]["items"].append({"id": action_id, "label": ""})
             self._render_items()
 
     def _remove_selected(self):
         row = self.items_list.currentRow()
         if row < 0 or not self.lists:
             return
-        action_id = self.items_list.currentItem().data(Qt.UserRole)
-        self.lists[self.current]["items"] = [
-            x for x in self._cur_items() if x != action_id]
+        self._cur_items().pop(row)
         self._render_items()
 
     def _move_up(self):
@@ -269,6 +274,21 @@ class ListMenuDialog(QDialog):
         items[row], items[row + 1] = items[row + 1], items[row]
         self._render_items()
         self.items_list.setCurrentRow(row + 1)
+
+    def _rename_item(self):
+        row = self.items_list.currentRow()
+        if row < 0 or not self.lists:
+            return
+        items = self._cur_items()
+        cur = items[row]
+        default = cur.get("label", "") or self._catalog.get(cur["id"], cur["id"])
+        new_label, ok = QInputDialog.getText(
+            self, "Rename Item",
+            "Custom name (leave empty to use Krita's default):",
+            text=default)
+        if ok:
+            items[row]["label"] = new_label.strip()
+            self._render_items()
 
     # ---------- Save ----------
     def accept(self):

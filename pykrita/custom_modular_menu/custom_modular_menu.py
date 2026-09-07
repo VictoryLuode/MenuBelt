@@ -18,6 +18,7 @@ from krita import Extension, Krita
 from PyQt5.QtCore import QEvent, QObject, Qt
 from PyQt5.QtGui import QCursor, QKeySequence
 from PyQt5.QtWidgets import (
+    QAction,
     QApplication,
     QKeySequenceEdit,
     QLineEdit,
@@ -118,11 +119,9 @@ class ListMenuExtension(Extension):
             menu.clear()
             for lst in load_lists():
                 sub = menu.addMenu(lst["name"])
-                for action_id in lst["items"]:
-                    try:
-                        act = Krita.instance().action(action_id)
-                    except RuntimeError:
-                        act = None
+                for item in lst["items"]:
+                    act = self._make_item_action(
+                        item["id"], item.get("label", ""), sub)
                     if act is not None:
                         sub.addAction(act)
             menu.addSeparator()
@@ -185,8 +184,8 @@ class ListMenuExtension(Extension):
             return
         parent = self._active_window_widget()
         menu = QMenu(parent)
-        for action_id in lst["items"]:
-            self._add_popup_action(menu, action_id)
+        for item in lst["items"]:
+            self._add_popup_action(menu, item["id"], item.get("label", ""))
         if not menu.actions():
             menu.deleteLater()
             return
@@ -205,21 +204,44 @@ class ListMenuExtension(Extension):
         menu = QMenu(parent)
         for lst in load_lists():
             sub = menu.addMenu(lst["name"])
-            for action_id in lst["items"]:
-                self._add_popup_action(sub, action_id)
+            for item in lst["items"]:
+                self._add_popup_action(sub, item["id"], item.get("label", ""))
         menu.addSeparator()
         edit_act = menu.addAction("Edit Custom List…")
         edit_act.triggered.connect(self.open_editor)
         self._force_close_on_trigger(menu)
         return menu
 
-    def _add_popup_action(self, menu, action_id):
-        try:
-            act = Krita.instance().action(action_id)
-        except RuntimeError:
-            act = None
+    def _add_popup_action(self, menu, action_id, label=""):
+        act = self._make_item_action(action_id, label, menu)
         if act is not None:
             menu.addAction(act)
+
+    def _make_item_action(self, action_id, label, parent):
+        """Return a QAction for a menu item.
+
+        No custom label -> reuse Krita's native QAction (keeps icon + live
+        enable/disable state). Custom label -> proxy QAction with the custom
+        text + native icon, triggering the native action.
+        """
+        try:
+            native = Krita.instance().action(action_id)
+        except RuntimeError:
+            native = None
+        if native is None:
+            return None
+        if not label:
+            return native
+        act = QAction(label, parent)
+        icon = native.icon()
+        if not icon.isNull():
+            act.setIcon(icon)
+        try:
+            act.setEnabled(native.isEnabled())
+        except RuntimeError:
+            pass
+        act.triggered.connect(native.trigger)
+        return act
 
     def _force_close_on_trigger(self, menu):
         """Force the menu to close after ANY item is clicked (even checkable).

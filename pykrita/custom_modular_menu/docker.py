@@ -54,8 +54,8 @@ class ListMenuDocker(DockWidget):
             label.setStyleSheet("font-weight: bold; color: #ddd;")
             body.addWidget(label)
 
-            for action_id in lst["items"]:
-                body.addWidget(self._make_button(action_id))
+            for item in lst["items"]:
+                body.addWidget(self._make_button(item["id"], item.get("label", "")))
 
         body.addStretch()
         inner.setLayout(body)
@@ -65,14 +65,14 @@ class ListMenuDocker(DockWidget):
         container.setLayout(outer)
         self.setWidget(container)
 
-    def _make_button(self, action_id):
+    def _make_button(self, action_id, label=""):
         act = None
         try:
             act = Krita.instance().action(action_id)
         except RuntimeError:
             act = None
-        text = (act.text().replace("&", "").strip() if act and act.text()
-                else action_id)
+        text = label or (act.text().replace("&", "").strip()
+                         if act and act.text() else action_id)
         btn = QPushButton(text)
         btn.setToolTip(f"{text}  [{action_id}]")
         if act is not None:
