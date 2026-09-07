@@ -46,9 +46,11 @@ class ListMenuDialog(QDialog):
         popup_row = QHBoxLayout()
         popup_row.addWidget(QLabel("Menu popup shortcut (whole list menu):"))
         self.popup_edit = QKeySequenceEdit(self.popup_shortcut)
-        self.popup_edit.setClearButtonEnabled(True)
         self.popup_edit.setToolTip("Press a key combination here to bind the whole menu popup.")
         popup_row.addWidget(self.popup_edit, 1)
+        popup_clear = QPushButton("Clear")
+        popup_clear.clicked.connect(lambda: self.popup_edit.setKeySequence(QKeySequence("")))
+        popup_row.addWidget(popup_clear)
         root.addLayout(popup_row)
 
         body = QHBoxLayout()
@@ -76,10 +78,12 @@ class ListMenuDialog(QDialog):
         sc_row = QHBoxLayout()
         sc_row.addWidget(QLabel("Popup shortcut:"))
         self.list_sc_edit = QKeySequenceEdit()
-        self.list_sc_edit.setClearButtonEnabled(True)
         self.list_sc_edit.setToolTip("Press a key combination to pop this list at the cursor.")
         self.list_sc_edit.keySequenceChanged.connect(self._on_list_shortcut_changed)
         sc_row.addWidget(self.list_sc_edit, 1)
+        sc_clear = QPushButton("Clear")
+        sc_clear.clicked.connect(lambda: self._clear_list_shortcut())
+        sc_row.addWidget(sc_clear)
         right.addLayout(sc_row)
 
         search_row = QHBoxLayout()
@@ -194,6 +198,14 @@ class ListMenuDialog(QDialog):
         if self._loading_sc or not self.lists:
             return
         self.lists[self.current]["shortcut"] = seq.toString(QKeySequence.PortableText)
+
+    def _clear_list_shortcut(self):
+        if not self.lists:
+            return
+        self.lists[self.current]["shortcut"] = ""
+        self._loading_sc = True
+        self.list_sc_edit.setKeySequence(QKeySequence(""))
+        self._loading_sc = False
 
     # ---------- Selected list items ----------
     def _cur_items(self):
