@@ -1,18 +1,59 @@
 """Custom Modular Menu (CMM) - core: builds three synchronised multi-list entries
-plus configurable dynamic shortcuts (QShortcut).
+plus configurable shortcuts.
+
+Shortcuts are implemented with a keyboard EVENT FILTER (not QShortcut), because
+Krita's canvas/shortcut handling consumes key events before Qt's QShortcut system
+sees them. The event-filter approach is the proven Krita pattern (used by the
+shortcut_composer plugin).
 
 - Tools > Custom Modular Menu submenu (lists -> items)
-- Cursor popup menu (reuses the same QMenu; bound to a dynamic shortcut)
+- Cursor popup menu (reuses the same QMenu; bound to a shortcut)
 - A dynamic shortcut per list (each list can pop on its own hotkey)
 - Edit dialog (saving changes refreshes every entry + shortcuts automatically)
 """
 
 from krita import Extension, Krita
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import QEvent, QObject, Qt
 from PyQt5.QtGui import QCursor, QKeySequence
-from PyQt5.QtWidgets import QMenu, QShortcut
+from PyQt5.QtWidgets import (
+    QApplication,
+    QKeySequenceEdit,
+    QLineEdit,
+    QMenu,
+    QPlainTextEdit,
+    QTextEdit,
+)
 
 from .config import load_lists, load_popup_shortcut, notify_refresh, register_refresh
+
+# Keys that on their own are modifiers, not real shortcuts
+_MODIFIER_KEYS = (
+    Qt.Key_Control, Qt.Key_Shift, Qt.Key_Alt, Qt.Key_Meta,
+    Qt.Key_unknown, Qt.Key_CapsLock, Qt.Key_NumLock, Qt.Key_ScrollLock,
+)
+_TEXT_INPUTS = (QLineEdit, QTextEdit, QPlainTextEdit, QKeySequenceEdit)
+
+
+class _KeyFilter(QObject):
+    """Installed on the Krita main window; dispatches configured shortcuts."""
+
+    def __init__(self, extension, owner=None):
+        super().__init__(owner)
+        self._ext = extension
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.KeyPress:
+            key = event.key()
+            if key in _MODIFIER_KEYS:
+                return False
+            # Do not hijack typing in text inputs (e.g. renaming a layer)
+            fw = QApplication.focusWidget()
+            if isinstance(fw, _TEXT_INPUTS):
+                return False
+            mods = event.modifiers()
+            seq = QKeySequence(int(mods) | key)
+            self._ext.dispatch_shortcut(seq.toString(QKeySequence.PortableText))
+        return False
 
 
 class ListMenuExtension(Extension):
@@ -20,14 +61,20 @@ class ListMenuExtension(Extension):
         super().__init__(parent)
         # One entry per window: {window, root_action, menu}
         self._windows = []
-        self._shortcuts = []   # QShortcut objects (kept alive to avoid GC)
+        self._shortcut_map = {}   # shortcut string -> callable
+        self._popup_active = False
+        # App-level key filter (global, sees every key press regardless of focus)
+        self._app_filter = _KeyFilter(self)
+        app = QApplication.instance()
+        if app is not None:
+            app.installEventFilter(self._app_filter)
         register_refresh(self._rebuild_all)
 
     def setup(self):
         pass
 
     def createActions(self, window):
-        # Trigger action (whole-menu popup; can also be used via Krita shortcuts editor)
+        # Trigger action (whole-menu popup; also usable via Krita shortcuts editor)
         popup_action = window.createAction(
             "custom_modular_menu_popup", "Pop Up Custom List", "")
         popup_action.triggered.connect(self.pop_menu)
@@ -78,40 +125,24 @@ class ListMenuExtension(Extension):
             menu.addAction(entry["edit_action"])
             break
 
-    # ---------- Dynamic shortcuts ----------
+    # ---------- Dynamic shortcuts (event filter based) ----------
     def _register_shortcuts(self):
-        self._unregister_shortcuts()
-        if not self._windows:
-            return
-        anchor = self._windows[-1]["window"]
-        try:
-            parent = anchor.qwindow()
-        except RuntimeError:
-            return
-
+        # Rebuild the shortcut lookup map from current config.
+        # The app-level event filter stays installed; only the map changes.
+        self._shortcut_map = {}
         popup = load_popup_shortcut()
         if popup:
-            sc = QShortcut(QKeySequence(popup), parent)
-            sc.setContext(Qt.ApplicationShortcut)
-            sc.activated.connect(self.pop_menu)
-            self._shortcuts.append(sc)
-
+            self._shortcut_map[popup] = self.pop_menu
         for i, lst in enumerate(load_lists()):
             key = lst.get("shortcut", "")
             if key:
-                sc = QShortcut(QKeySequence(key), parent)
-                sc.setContext(Qt.ApplicationShortcut)
-                sc.activated.connect(lambda i=i: self.pop_list(i))
-                self._shortcuts.append(sc)
+                self._shortcut_map[key] = (lambda i=i: self.pop_list(i))
 
-    def _unregister_shortcuts(self):
-        for sc in self._shortcuts:
-            try:
-                sc.setParent(None)
-                sc.deleteLater()
-            except RuntimeError:
-                pass
-        self._shortcuts = []
+    def dispatch_shortcut(self, seq_str):
+        """Called by the event filter with the pressed key sequence (PortableText)."""
+        cb = self._shortcut_map.get(seq_str)
+        if cb is not None:
+            cb()
 
     # ---------- Behaviour ----------
     def _active_menu(self):
@@ -128,12 +159,20 @@ class ListMenuExtension(Extension):
 
     def pop_menu(self, *_):
         """Open the whole multi-list menu under the cursor of the active window."""
+        if self._popup_active:
+            return
         menu = self._active_menu()
         if menu is not None:
-            menu.exec_(QCursor.pos())
+            self._popup_active = True
+            try:
+                menu.exec_(QCursor.pos())
+            finally:
+                self._popup_active = False
 
     def pop_list(self, index):
         """Open only one list (given its index) as a cursor menu."""
+        if self._popup_active:
+            return
         try:
             lst = load_lists()[index]
         except (IndexError, TypeError):
@@ -148,7 +187,11 @@ class ListMenuExtension(Extension):
             if act is not None:
                 menu.addAction(act)
         if menu.actions():
-            menu.exec_(QCursor.pos())
+            self._popup_active = True
+            try:
+                menu.exec_(QCursor.pos())
+            finally:
+                self._popup_active = False
 
     def _active_window_widget(self):
         active = Krita.instance().activeWindow()
