@@ -53,6 +53,7 @@ class ListMenuDialog(QDialog):
         self._build_ui()
         self._reload_sidebar()
         self._render_current()
+        self._update_left_shortcut()
 
     # ---------- Dialog size (remembered across sessions) ----------
     def _apply_default_size(self):
@@ -108,6 +109,18 @@ class ListMenuDialog(QDialog):
             b = QPushButton(label)
             b.clicked.connect(slot)
             left.addWidget(b)
+
+        sc_row = QHBoxLayout()
+        sc_row.addWidget(QLabel("Popup shortcut:"))
+        self.list_sc_edit = QKeySequenceEdit()
+        self.list_sc_edit.setToolTip("Press a key combination to pop this list at the cursor.")
+        self.list_sc_edit.keySequenceChanged.connect(self._on_list_shortcut_changed)
+        sc_row.addWidget(self.list_sc_edit, 1)
+        sc_clear = QPushButton("Clear")
+        sc_clear.clicked.connect(self._clear_list_shortcut)
+        sc_row.addWidget(sc_clear)
+        left.addLayout(sc_row)
+
         left_box.setMinimumWidth(190)
         body.addWidget(left_box, 1)
 
@@ -121,17 +134,6 @@ class ListMenuDialog(QDialog):
 
         self.list_title = QLabel()
         right.addWidget(self.list_title)
-
-        sc_row = QHBoxLayout()
-        sc_row.addWidget(QLabel("Popup shortcut:"))
-        self.list_sc_edit = QKeySequenceEdit()
-        self.list_sc_edit.setToolTip("Press a key combination to pop this menu at the cursor.")
-        self.list_sc_edit.keySequenceChanged.connect(self._on_list_shortcut_changed)
-        sc_row.addWidget(self.list_sc_edit, 1)
-        sc_clear = QPushButton("Clear")
-        sc_clear.clicked.connect(self._clear_list_shortcut)
-        sc_row.addWidget(sc_clear)
-        right.addLayout(sc_row)
 
         search_row = QHBoxLayout()
         search_row.addWidget(QLabel("Available actions:"))
@@ -241,6 +243,7 @@ class ListMenuDialog(QDialog):
         if 0 <= row < len(self.lists):
             self.current = row
             self.path = [self.lists[row]]
+            self._update_left_shortcut()
             self._render_current()
 
     def _sync_lists_order(self, *_):
@@ -253,6 +256,7 @@ class ListMenuDialog(QDialog):
         if len(new_order) == len(self.lists):
             self.lists[:] = new_order
         self.current = max(0, self.sidebar.currentRow())
+        self._update_left_shortcut()
 
     def _new_list(self):
         name, ok = QInputDialog.getText(self, "New List", "List name:")
@@ -263,6 +267,7 @@ class ListMenuDialog(QDialog):
         self.path = [self.lists[self.current]]
         self._reload_sidebar()
         self._render_current()
+        self._update_left_shortcut()
 
     def _rename_list(self):
         if not self.lists:
@@ -285,27 +290,33 @@ class ListMenuDialog(QDialog):
             self.path = [self.lists[self.current]] if self.lists else []
             self._reload_sidebar()
             self._render_current()
+            self._update_left_shortcut()
 
     # ---------- Shortcut ----------
     def _on_list_shortcut_changed(self, seq):
-        if self._loading_sc or not self.path:
+        if self._loading_sc or not self.lists:
             return
-        self._cur_menu()["shortcut"] = seq.toString(QKeySequence.PortableText)
+        self.lists[self.current]["shortcut"] = seq.toString(QKeySequence.PortableText)
 
     def _clear_list_shortcut(self):
-        if not self.path:
+        if not self.lists:
             return
-        self._cur_menu()["shortcut"] = ""
+        self.lists[self.current]["shortcut"] = ""
         self._loading_sc = True
         self.list_sc_edit.setKeySequence(QKeySequence(""))
+        self._loading_sc = False
+
+    def _update_left_shortcut(self):
+        if not self.lists:
+            return
+        self._loading_sc = True
+        self.list_sc_edit.setKeySequence(
+            self.lists[self.current].get("shortcut", ""))
         self._loading_sc = False
 
     # ---------- Current menu items ----------
     def _render_current(self):
         self.list_title.setText(f"Current list: {self._name()}")
-        self._loading_sc = True
-        self.list_sc_edit.setKeySequence(self._cur_shortcut())
-        self._loading_sc = False
         self._render_path_bar()
         self._render_items()
 
