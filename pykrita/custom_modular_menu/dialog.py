@@ -49,6 +49,66 @@ TYPE_SCRIPT = "script"
 TYPE_BLEND = "blend"
 
 
+class AddSource:
+    """A pluggable source of items for the 'Add items' pane.
+
+    To add a future source (colour swatches, submenu templates, placeholders, ...),
+    append an AddSource(...) to ADD_SOURCES with its own item_type, enum_fn, add_fn.
+    Nothing else in the dialog needs to change.
+    """
+
+    def __init__(self, key, label, item_type, enum_fn, add_fn):
+        self.key = key
+        self.label = label
+        self.item_type = item_type
+        self.enum_fn = enum_fn     # (dlg, needle) -> iterable of (payload, display_text)
+        self.add_fn = add_fn       # (dlg, payload) -> None  (appends to current menu)
+
+
+def _enum_actions(dlg, needle):
+    existing = dlg._existing_cmd_ids()
+    for action_id, text in dlg._catalog.items():
+        if needle and needle not in text.lower() and needle not in action_id.lower():
+            continue
+        if action_id in existing:
+            continue
+        yield (action_id, f"{text}   [{action_id}]")
+
+
+def _add_action(dlg, payload):
+    action_id = payload
+    if action_id not in dlg._existing_cmd_ids():
+        dlg._cur_items().append({"id": action_id, "label": ""})
+        dlg._render_items()
+
+
+def _enum_blend(dlg, needle):
+    existing = {it.get("blend") for it in dlg._cur_items()
+                if isinstance(it, dict) and it.get("blend")}
+    for oid, label in LAYER_BLEND_MODES:
+        if needle and needle not in label.lower() and needle not in oid.lower():
+            continue
+        if oid in existing:
+            continue
+        yield (oid, f"\u25c6 {label}   [{oid}]")
+
+
+def _add_blend(dlg, payload):
+    oid = payload
+    existing = {it.get("blend") for it in dlg._cur_items()
+                if isinstance(it, dict) and it.get("blend")}
+    if oid not in existing:
+        dlg._cur_items().append({"blend": oid, "label": dict(LAYER_BLEND_MODES).get(oid, oid)})
+        dlg._render_items()
+
+
+# Order = order shown in the "Add items" combo. Append new sources here to extend.
+ADD_SOURCES = [
+    AddSource("actions", "Krita Actions", TYPE_CMD, _enum_actions, _add_action),
+    AddSource("blend", "Layer Blend Mode", TYPE_BLEND, _enum_blend, _add_blend),
+]
+
+
 class ListMenuDialog(QDialog):
     """Multi-menu editor with nested submenu navigation + live preview."""
 
@@ -64,6 +124,7 @@ class ListMenuDialog(QDialog):
         self.current = 0
         self.path = [self.lists[self.current]] if self.lists else []
         self._loading_sc = False
+        self._sources = list(ADD_SOURCES)
 
         self._build_ui()
         self._reload_sidebar()
@@ -180,7 +241,7 @@ class ListMenuDialog(QDialog):
         avail_box = QGroupBox("Add items")
         av = QVBoxLayout(avail_box)
         self.add_type = QComboBox()
-        self.add_type.addItems(["Krita Actions", "Layer Blend Mode"])
+        self.add_type.addItems([s.label for s in self._sources])
         self.add_type.currentIndexChanged.connect(lambda _i: self._reload_available())
         av.addWidget(self.add_type)
         search_row = QHBoxLayout()
@@ -405,33 +466,22 @@ class ListMenuDialog(QDialog):
                 out.add(it["id"])
         return out
 
+    def _current_source(self):
+        idx = self.add_type.currentIndex()
+        if 0 <= idx < len(self._sources):
+            return self._sources[idx]
+        return None
+
     def _reload_available(self):
         self.avail_list.clear()
-        needle = self.search_box.text().strip().lower()
-        if self.add_type.currentIndex() == 1:
-            # Layer blend mode picker
-            existing = {it.get("blend") for it in self._cur_items()
-                        if isinstance(it, dict) and it.get("blend")}
-            for oid, label in LAYER_BLEND_MODES:
-                if needle and needle not in label.lower() and needle not in oid.lower():
-                    continue
-                if oid in existing:
-                    continue
-                entry = QListWidgetItem(f"\u25c6 {label}   [{oid}]")
-                entry.setData(ROLE_TOKEN, oid)
-                entry.setData(ROLE_TYPE, TYPE_BLEND)
-                self.avail_list.addItem(entry)
+        src = self._current_source()
+        if src is None:
             return
-        # Krita actions
-        existing = self._existing_cmd_ids()
-        for action_id, text in self._catalog.items():
-            if needle and needle not in text.lower() and needle not in action_id.lower():
-                continue
-            if action_id in existing:
-                continue
-            entry = QListWidgetItem(f"{text}   [{action_id}]")
-            entry.setData(ROLE_TOKEN, action_id)
-            entry.setData(ROLE_TYPE, TYPE_CMD)
+        needle = self.search_box.text().strip().lower()
+        for payload, text in src.enum_fn(self, needle):
+            entry = QListWidgetItem(text)
+            entry.setData(ROLE_TOKEN, payload)
+            entry.setData(ROLE_TYPE, src.item_type)
             self.avail_list.addItem(entry)
 
     def _sync_items_order(self, *_):
@@ -472,19 +522,11 @@ class ListMenuDialog(QDialog):
         entry = self.avail_list.currentItem()
         if entry is None or not self.path:
             return
-        if entry.data(ROLE_TYPE) == TYPE_BLEND:
-            oid = entry.data(ROLE_TOKEN)
-            existing = {it.get("blend") for it in self._cur_items()
-                        if isinstance(it, dict) and it.get("blend")}
-            if oid not in existing:
-                label = dict(LAYER_BLEND_MODES).get(oid, oid)
-                self._cur_items().append({"blend": oid, "label": label})
-                self._render_items()
+        src = self._current_source()
+        if src is None:
             return
-        action_id = entry.data(ROLE_TOKEN)
-        if action_id not in self._existing_cmd_ids():
-            self._cur_items().append({"id": action_id, "label": ""})
-            self._render_items()
+        src.add_fn(self, entry.data(ROLE_TOKEN))
+        self._reload_available()  # refresh dedup after adding
 
     def _add_submenu(self):
         if not self.path:
