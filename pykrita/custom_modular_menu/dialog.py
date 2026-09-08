@@ -212,6 +212,7 @@ class ListMenuDialog(QDialog):
 
         # Current Menu (its own panel, right of Menu List)
         current_box = QGroupBox("Current Menu")
+        self.current_box = current_box
         cm = QVBoxLayout(current_box)
         header_row = QHBoxLayout()
         self.crumb_row = QHBoxLayout()
@@ -338,19 +339,24 @@ class ListMenuDialog(QDialog):
     def _name(self):
         return self._cur_menu().get("name", "")
 
+    def _update_current_title(self):
+        name = self._name()
+        self.current_box.setTitle(("Current Menu : %s" % name) if name else "Current Menu")
+
     def _render_path_bar(self):
         while self.crumb_row.count():
             it = self.crumb_row.takeAt(0).widget()
             if it is not None:
                 it.deleteLater()
-        for i, node in enumerate(self.path):
-            if i > 0:
-                self.crumb_row.addWidget(QLabel("▸"))
-            btn = QPushButton(node.get("name", "?"))
-            btn.setFlat(True)
-            btn.clicked.connect(lambda _=False, d=i: self._go_to_depth(d))
-            self.crumb_row.addWidget(btn)
-        # no trailing stretch here: header_row's stretch gives the adaptive gap before Shortcut
+        # Submenu navigation crumbs — only shown while inside a submenu (i>0).
+        if len(self.path) > 1:
+            for i, node in enumerate(self.path):
+                if i > 0:
+                    self.crumb_row.addWidget(QLabel("\u25b8"))
+                btn = QPushButton(node.get("name", "?"))
+                btn.setFlat(True)
+                btn.clicked.connect(lambda _=False, d=i: self._go_to_depth(d))
+                self.crumb_row.addWidget(btn)
 
     def _go_to_depth(self, depth):
         if 0 <= depth < len(self.path):
@@ -516,6 +522,7 @@ class ListMenuDialog(QDialog):
         return None
 
     def _render_current(self):
+        self._update_current_title()
         self._render_path_bar()
         self._render_items()
 
