@@ -80,9 +80,9 @@ class _MenuRow(QWidget):
 
     def sizeHint(self):
         fm = self.fontMetrics()
-        w = fm.horizontalAdvance(self._text) + 44   # left pad 10 + right pad 12 + slack
-        if self._icon is not None and not self._icon.isNull():
-            w += 30                                 # icon 20 + gap 10
+        # 40 = left pad 10 + icon column 20 + gap 10, ALWAYS reserved so no-icon
+        # rows align their text with icon rows.
+        w = 40 + fm.horizontalAdvance(self._text) + 12   # + right pad
         if self._shortcut:
             w += fm.horizontalAdvance(self._shortcut) + 28
         return QSize(w, 30)
@@ -109,14 +109,14 @@ class _MenuRow(QWidget):
         else:
             p.setPen(pal.text().color())
         fm = self.fontMetrics()
-        x = 10
+        x_icon = 10           # icon column left edge
+        x_text = 40           # text always starts here (icon column reserved)
         y = (self.height() - fm.height()) // 2
         if self._icon is not None and not self._icon.isNull():
             size = 20
-            p.drawPixmap(x, (self.height() - size) // 2,
+            p.drawPixmap(x_icon, (self.height() - size) // 2,
                          self._icon.pixmap(QSize(size, size)))
-            x += size + 10
-        p.drawText(x, y + fm.ascent(), self._text)
+        p.drawText(x_text, y + fm.ascent(), self._text)
         if self._shortcut:
             p.setPen(QColor("#808080"))
             sw = fm.horizontalAdvance(self._shortcut)
