@@ -145,6 +145,7 @@ def _clean_lists(lists):
             "name": lst["name"],
             "shortcut": lst.get("shortcut", "") or "",
             "active": bool(lst.get("active", True)),
+            "popup_position": lst.get("popup_position", "last"),
             "items": _clean_items(lst.get("items", [])),
         })
     return clean
@@ -184,6 +185,7 @@ def _serialize_lists(lists):
             "name": lst.get("name", ""),
             "shortcut": lst.get("shortcut", "") or "",
             "active": bool(lst.get("active", True)),
+            "popup_position": lst.get("popup_position", "last"),
             "items": _serialize_items(lst.get("items", [])),
         })
     return out
