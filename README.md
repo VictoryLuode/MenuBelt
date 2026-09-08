@@ -1,7 +1,7 @@
-![License: GPL-3.0](https://img.shields.io/badge/License-GPL-3.0-blue.svg)
-![Krita](https://img.shields.io/badge/Krita-5.x-3aa5dc.svg)
-![YouTube](https://img.shields.io/badge/YouTube-@VictoryLuode-red.svg?logo=youtube&logoColor=white)
-![ArtStation](https://img.shields.io/badge/ArtStation-victoryluode-0077b5.svg?logo=artstation&logoColor=white)
+![License: GPL-3.0](https://img.shields.io/static/v1?label=License&message=GPL-3.0&color=blue)
+![Krita](https://img.shields.io/static/v1?label=Krita&message=5.x&color=3aa5dc)
+![YouTube](https://img.shields.io/static/v1?label=YouTube&message=@VictoryLuode&color=red&logo=youtube&logoColor=white)
+![ArtStation](https://img.shields.io/static/v1?label=ArtStation&message=victoryluode&color=0077b5&logo=artstation&logoColor=white)
 
 ![MenuBelt](assets/menubelt-poster.png)
 
