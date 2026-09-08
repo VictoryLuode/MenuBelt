@@ -80,12 +80,12 @@ class _MenuRow(QWidget):
 
     def sizeHint(self):
         fm = self.fontMetrics()
-        w = fm.horizontalAdvance(self._text) + 34
+        w = fm.horizontalAdvance(self._text) + 44   # left pad 10 + right pad 12 + slack
         if self._icon is not None and not self._icon.isNull():
-            w += 26
+            w += 30                                 # icon 20 + gap 10
         if self._shortcut:
-            w += fm.horizontalAdvance(self._shortcut) + 26
-        return QSize(w, 24)
+            w += fm.horizontalAdvance(self._shortcut) + 28
+        return QSize(w, 30)
 
     def enterEvent(self, e):
         self._hover = True
@@ -109,18 +109,18 @@ class _MenuRow(QWidget):
         else:
             p.setPen(pal.text().color())
         fm = self.fontMetrics()
-        x = 6
+        x = 10
         y = (self.height() - fm.height()) // 2
         if self._icon is not None and not self._icon.isNull():
-            size = 18
+            size = 20
             p.drawPixmap(x, (self.height() - size) // 2,
                          self._icon.pixmap(QSize(size, size)))
-            x += size + 8
+            x += size + 10
         p.drawText(x, y + fm.ascent(), self._text)
         if self._shortcut:
             p.setPen(QColor("#808080"))
             sw = fm.horizontalAdvance(self._shortcut)
-            p.drawText(self.width() - sw - 10, y + fm.ascent(), self._shortcut)
+            p.drawText(self.width() - sw - 12, y + fm.ascent(), self._shortcut)
         p.end()
 
 
