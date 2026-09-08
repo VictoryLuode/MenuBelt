@@ -8,7 +8,7 @@ import json
 
 from krita import Krita
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QBrush, QColor, QFont, QKeySequence
+from PyQt5.QtGui import QBrush, QColor, QFont, QIcon, QKeySequence, QPixmap
 from PyQt5.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -580,6 +580,50 @@ class ListMenuDialog(QDialog):
                 return it["name"]
         return None
 
+    def _item_icon(self, it):
+        """Return a QIcon for an item (Krita action icon / brush thumbnail), or None."""
+        if isinstance(it, str):
+            aid = it
+        elif isinstance(it, dict):
+            if it.get("id"):
+                aid = it["id"]
+            elif it.get("brush") is not None:
+                return self._brush_pixmap_icon(it["brush"])
+            else:
+                return None
+        else:
+            return None
+        try:
+            act = Krita.instance().action(aid)
+            if act is not None:
+                icon = act.icon()
+                if not icon.isNull():
+                    return icon
+        except Exception:
+            pass
+        return None
+
+    def _brush_pixmap_icon(self, name):
+        try:
+            presets = Krita.instance().resources("preset")
+            resource = presets.get(name)
+            if resource is None:
+                for p in presets.values():
+                    try:
+                        if p.filename() == name:
+                            resource = p
+                            break
+                    except Exception:
+                        continue
+            if resource is None:
+                return None
+            img = resource.image()
+            if not img.isNull():
+                return QIcon(QPixmap.fromImage(img))
+        except Exception:
+            pass
+        return None
+
     def _render_current(self):
         self._update_current_title()
         self._render_path_bar()
@@ -605,6 +649,9 @@ class ListMenuDialog(QDialog):
                 elif it.get("name") is not None:
                     typ, text = TYPE_MENU, f"\u25b8 {it['name']}"
             entry = QListWidgetItem(text)
+            icon = self._item_icon(it)
+            if icon is not None:
+                entry.setIcon(icon)
             entry.setData(ROLE_INDEX, idx)
             entry.setData(ROLE_TOKEN, token)
             entry.setData(ROLE_TYPE, typ)
@@ -850,7 +897,11 @@ class ListMenuDialog(QDialog):
             elif isinstance(entry, dict):
                 if entry.get("id"):
                     text = entry.get("label", "") or self._catalog.get(entry["id"], entry["id"])
-                    parent_item.addChild(QTreeWidgetItem([text]))
+                    child = QTreeWidgetItem([text])
+                    icon = self._item_icon(entry)
+                    if icon is not None:
+                        child.setIcon(0, icon)
+                    parent_item.addChild(child)
                 elif entry.get("script") is not None:
                     parent_item.addChild(QTreeWidgetItem(
                         ["⚙ " + (entry.get("label", "Script") or "Script")]))
@@ -858,8 +909,12 @@ class ListMenuDialog(QDialog):
                     parent_item.addChild(QTreeWidgetItem(
                         ["◆ " + (entry.get("label", entry["blend"]) or entry["blend"])]))
                 elif entry.get("brush") is not None:
-                    parent_item.addChild(QTreeWidgetItem(
-                        ["🖌 " + (entry.get("label", entry["brush"]) or entry["brush"])]))
+                    child = QTreeWidgetItem(
+                        ["🖌 " + (entry.get("label", entry["brush"]) or entry["brush"])])
+                    icon = self._item_icon(entry)
+                    if icon is not None:
+                        child.setIcon(0, icon)
+                    parent_item.addChild(child)
                 elif entry.get("name") is not None:
                     child = QTreeWidgetItem([entry["name"]])
                     parent_item.addChild(child)

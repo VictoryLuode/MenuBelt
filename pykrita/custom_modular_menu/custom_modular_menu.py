@@ -16,7 +16,8 @@ import time
 
 from krita import Extension, Krita
 from PyQt5.QtCore import QEvent, QObject, QPoint, QSize, Qt
-from PyQt5.QtGui import QCursor, QFont, QIcon, QKeySequence, QPixmap
+from PyQt5.QtGui import (QColor, QCursor, QFont, QIcon, QKeySequence,
+                         QPalette, QPixmap)
 from PyQt5.QtWidgets import (
     QAction,
     QApplication,
@@ -39,33 +40,21 @@ _MODIFIER_KEYS = (
 )
 _TEXT_INPUTS = (QLineEdit, QTextEdit, QPlainTextEdit, QKeySequenceEdit)
 
-# Blender-style dark menu palette (mimics the Add menu: dark bg, grey/white
-# text, grey hover, thin separators, grey disabled header).
-_MENU_QSS = """
-QMenu {
-    background-color: #212121;
-    border: 1px solid #2c2c2c;
-    color: #e8e8e8;
-    padding: 4px;
-}
-QMenu::item {
-    background: transparent;
-    color: #e8e8e8;
-    padding: 5px 18px 5px 0px;
-}
-QMenu::item:selected {
-    background-color: #3d3d3d;
-    color: #ffffff;
-}
-QMenu::item:disabled {
-    color: #9a9a9a;
-}
-QMenu::separator {
-    background-color: #3a3a3a;
-    height: 1px;
-    margin: 4px 8px;
-}
-"""
+# Dark Blender-like theme applied via QPalette (keeps action/brush icons) plus a
+# thin grey separator. Using QMenu::item stylesheet would suppress item icons.
+def _apply_dark_theme(menu):
+    pal = menu.palette()
+    pal.setColor(QPalette.Window, QColor(33, 33, 33))
+    pal.setColor(QPalette.Base, QColor(33, 33, 33))
+    pal.setColor(QPalette.Text, QColor(232, 232, 232))
+    pal.setColor(QPalette.WindowText, QColor(232, 232, 232))
+    pal.setColor(QPalette.ButtonText, QColor(232, 232, 232))
+    pal.setColor(QPalette.Highlight, QColor(61, 61, 61))
+    pal.setColor(QPalette.HighlightedText, QColor(255, 255, 255))
+    pal.setColor(QPalette.Disabled, QPalette.Text, QColor(154, 154, 154))
+    pal.setColor(QPalette.Disabled, QPalette.WindowText, QColor(154, 154, 154))
+    menu.setPalette(pal)
+    menu.setStyleSheet("QMenu::separator { background-color: #3a3a3a; height: 1px; margin: 4px 8px; }")
 
 
 class _KeyFilter(QObject):
@@ -277,7 +266,7 @@ class ListMenuExtension(Extension):
         parent = self._active_window_widget()
         ident_map = {}
         menu = QMenu(parent)
-        menu.setStyleSheet(_MENU_QSS)
+        _apply_dark_theme(menu)
         if not lst.get("show_icons", True):
             menu.setIconSize(QSize(0, 0))
         self._build_menu_node(menu, lst, ident_map)
@@ -383,11 +372,12 @@ class ListMenuExtension(Extension):
     def _build_popup_menu(self, parent, ident_map=None):
         """Build a fresh cursor popup menu (lists -> items + edit footer)."""
         menu = QMenu(parent)
-        menu.setStyleSheet(_MENU_QSS)
+        _apply_dark_theme(menu)
         for lst in load_lists():
             if not lst.get("active", True):
                 continue
             sub = menu.addMenu(lst["name"])
+            _apply_dark_theme(sub)
             if not lst.get("show_icons", True):
                 sub.setIconSize(QSize(0, 0))
             self._build_menu_node(sub, lst, ident_map)
