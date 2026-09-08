@@ -3,6 +3,10 @@
 Build your own **multi-list action menus** in Krita and reach them from a **cursor popup**
 or the **Tools → MenuBelt** submenu — as a **linear List** or a **Blender-style radial Pie**.
 
+## Demo
+
+[![MenuBelt demo](https://img.youtube.com/vi/hjSDBv3bs3Q/maxresdefault.jpg)](https://youtu.be/hjSDBv3bs3Q)
+
 ## Highlights
 
 - **Native Krita actions** — icons, state and shortcut hints inherited automatically.
