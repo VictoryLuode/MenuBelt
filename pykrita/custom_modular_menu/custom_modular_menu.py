@@ -50,7 +50,7 @@ QMenu {
 QMenu::item {
     background: transparent;
     color: #e8e8e8;
-    padding: 5px 18px 5px 4px;
+    padding: 5px 18px 5px 0px;
 }
 QMenu::item:selected {
     background-color: #3d3d3d;
