@@ -167,7 +167,7 @@ class _SeparatorRow(QWidget):
 
     def paintEvent(self, e):
         p = QPainter(self)
-        p.setPen(QColor("#2f2f2f"))
+        p.setPen(QColor("#4a4a4a"))
         p.drawLine(8, self.height() // 2, self.width() - 8, self.height() // 2)
         p.end()
 
