@@ -2,6 +2,7 @@
 ![Krita](https://img.shields.io/static/v1?label=Krita&message=5.x&color=3aa5dc)
 ![YouTube](https://img.shields.io/static/v1?label=YouTube&message=@VictoryLuode&color=red&logo=youtube&logoColor=white)
 ![ArtStation](https://img.shields.io/static/v1?label=ArtStation&message=victoryluode&color=0077b5&logo=artstation&logoColor=white)
+![X](https://img.shields.io/static/v1?label=X&message=@victoryluode&color=black&logo=x&logoColor=white)
 
 ![MenuBelt](assets/menubelt-poster.png)
 
