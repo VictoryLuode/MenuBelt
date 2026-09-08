@@ -421,6 +421,7 @@ class ListMenuDialog(QDialog):
         left.addWidget(self.sidebar)
         for label, slot in (("Add", self._new_list),
                             ("Rename", self._rename_list),
+                            ("Duplicate", self._duplicate_list),
                             ("Delete", self._delete_list)):
             b = QPushButton(label)
             b.clicked.connect(slot)
@@ -722,6 +723,20 @@ class ListMenuDialog(QDialog):
             self.lists[self.current]["name"] = new_name.strip()
             self._reload_sidebar()
             self._render_path_bar()
+
+    def _duplicate_list(self):
+        if not self.lists:
+            return
+        src = self.lists[self.current]
+        # lists are plain JSON data, so a json round-trip is a clean deep copy
+        dup = json.loads(json.dumps(src))
+        dup["name"] = src.get("name", "Menu") + " copy"
+        self.lists.insert(self.current + 1, dup)
+        self.current += 1
+        self.path = [self.lists[self.current]]
+        self._reload_sidebar()
+        self._render_current()
+        self._update_left_shortcut()
 
     def _delete_list(self):
         if not self.lists:
