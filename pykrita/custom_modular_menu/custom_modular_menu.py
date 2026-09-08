@@ -251,6 +251,12 @@ class ListMenuExtension(Extension):
         if not menu.actions():
             menu.deleteLater()
             return
+        # Prepend a menu-name header (disabled title) above a divider.
+        first = menu.actions()[0]
+        title = QAction(lst["name"], menu)
+        title.setEnabled(False)
+        menu.insertAction(first, title)
+        menu.insertSeparator(first)
         self._force_close_on_trigger(menu)
         pos_mode = lst.get("popup_position", "last")
         if pos_mode == "cursor":
