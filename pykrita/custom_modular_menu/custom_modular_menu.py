@@ -146,15 +146,22 @@ class ListMenuExtension(Extension):
         # editor (the custom_modular_menu_popup action), so only per-list keys
         # are registered here. The app-level event filter stays installed.
         self._shortcut_map = {}
-        for i, lst in enumerate(load_lists()):
+        for lst in load_lists():
             if not lst.get("active", True):
                 continue
             key = lst.get("shortcut", "")
             if key:
+                name = lst["name"]
                 if lst.get("form", "list") == "pie":
-                    self._shortcut_map[key] = (lambda i=i: self.pop_pie(i))
+                    self._shortcut_map[key] = (lambda n=name: self.pop_pie(n))
                 else:
-                    self._shortcut_map[key] = (lambda i=i: self.pop_list(i))
+                    self._shortcut_map[key] = (lambda n=name: self.pop_list(n))
+
+    def _list_index_by_name(self, name):
+        for i, lst in enumerate(load_lists()):
+            if lst.get("name") == name:
+                return i
+        return -1
 
     def dispatch_shortcut(self, seq_str):
         """Called by the event filter with the pressed key sequence (PortableText)."""
@@ -223,9 +230,12 @@ class ListMenuExtension(Extension):
             self._ignore_until = time.time() + 0.3
             menu.deleteLater()
 
-    def pop_list(self, index):
-        """Open only one list (given its index) as a cursor menu."""
+    def pop_list(self, target):
+        """Open only one list (given its index or name) as a cursor menu."""
         if self._popup_active or time.time() < self._ignore_until:
+            return
+        index = target if isinstance(target, int) else self._list_index_by_name(target)
+        if index < 0:
             return
         try:
             lst = load_lists()[index]
@@ -294,9 +304,12 @@ class ListMenuExtension(Extension):
                            icon if not icon.isNull() else None, act.trigger))
         return slices
 
-    def pop_pie(self, index):
-        """Show a Blender-style radial menu for a pie-form list at the cursor."""
+    def pop_pie(self, target):
+        """Show a Blender-style radial menu for a pie-form list (index or name)."""
         if self._pie is not None:
+            return
+        index = target if isinstance(target, int) else self._list_index_by_name(target)
+        if index < 0:
             return
         try:
             lst = load_lists()[index]
