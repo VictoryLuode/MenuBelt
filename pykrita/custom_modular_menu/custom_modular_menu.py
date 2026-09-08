@@ -60,6 +60,8 @@ class _KeyFilter(QObject):
             seq = QKeySequence(int(mods) | key)
             self._ext.dispatch_shortcut(seq.toString(QKeySequence.PortableText))
         elif event.type() == QEvent.KeyRelease:
+            if event.isAutoRepeat():
+                return False  # ignore auto-release pairs while held
             key = event.key()
             if key in _MODIFIER_KEYS:
                 return False
