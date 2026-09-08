@@ -292,15 +292,11 @@ class ListMenuExtension(Extension):
         menu.insertAction(first, title)
         menu.insertSeparator(first)
         self._force_close_on_trigger(menu)
-        pos_mode = lst.get("popup_position", "last")
-        if pos_mode == "cursor":
-            pos, at = QCursor.pos(), None
-        else:
-            pos, at = self._popup_anchor(menu, ident_map)
+        pos, at = self._popup_anchor(menu, ident_map)
         self._popup_active = True
         try:
             triggered = menu.exec_(pos, at)
-            if triggered is not None and pos_mode == "last":
+            if triggered is not None:
                 ident = ident_map.get(triggered)
                 if ident is not None:
                     self._last_identity = ident

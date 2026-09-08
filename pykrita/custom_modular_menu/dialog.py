@@ -176,7 +176,6 @@ class ListMenuDialog(QDialog):
 
         self._build_ui()
         self._reload_sidebar()
-        self._update_pos_combo()
         self._update_form_combo()
         self._render_current()
         self._update_left_shortcut()
@@ -274,18 +273,6 @@ class ListMenuDialog(QDialog):
         settings_box = QGroupBox("Menu Settings")
         st = QVBoxLayout(settings_box)
         st.setContentsMargins(8, 6, 8, 6)
-        pos_row = QHBoxLayout()
-        pos_row.addWidget(QLabel("Popup position:"))
-        self.pos_combo = QComboBox()
-        self.pos_combo.addItem("Last used", "last")
-        self.pos_combo.addItem("Standard", "cursor")
-        self.pos_combo.setToolTip(
-            "Last used: open where the previously-chosen item is, under the cursor.\n"
-            "Standard: open at the current cursor position.")
-        self.pos_combo.currentIndexChanged.connect(self._on_pos_changed)
-        pos_row.addWidget(self.pos_combo)
-        pos_row.addStretch()
-        st.addLayout(pos_row)
 
         # Menu form (list / pie)
         form_row = QHBoxLayout()
@@ -462,7 +449,6 @@ class ListMenuDialog(QDialog):
             self.current = row
             self.path = [self.lists[row]]
             self._update_left_shortcut()
-            self._update_pos_combo()
             self._update_form_combo()
             self._render_current()
 
@@ -470,26 +456,6 @@ class ListMenuDialog(QDialog):
         if 0 <= self.current < len(self.lists):
             return self.lists[self.current]
         return None
-
-    def _on_pos_changed(self):
-        lst = self._cur_top_list()
-        if lst is None:
-            return
-        lst["popup_position"] = self.pos_combo.currentData()
-        save_config(self.popup_shortcut, self.lists)
-        notify_refresh()
-
-    def _update_pos_combo(self):
-        lst = self._cur_top_list()
-        self.pos_combo.blockSignals(True)
-        if lst is None:
-            self.pos_combo.setEnabled(False)
-            self.pos_combo.blockSignals(False)
-            return
-        self.pos_combo.setEnabled(True)
-        idx = self.pos_combo.findData(lst.get("popup_position", "last"))
-        self.pos_combo.setCurrentIndex(max(0, idx))
-        self.pos_combo.blockSignals(False)
 
     def _on_form_changed(self):
         lst = self._cur_top_list()
