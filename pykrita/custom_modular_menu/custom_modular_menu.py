@@ -15,8 +15,8 @@ shortcut_composer plugin).
 import time
 
 from krita import Extension, Krita
-from PyQt5.QtCore import QEvent, QObject, QPoint, Qt
-from PyQt5.QtGui import QCursor, QFont, QKeySequence
+from PyQt5.QtCore import QEvent, QObject, QPoint, QSize, Qt
+from PyQt5.QtGui import QCursor, QFont, QIcon, QKeySequence, QPixmap
 from PyQt5.QtWidgets import (
     QAction,
     QApplication,
@@ -278,6 +278,8 @@ class ListMenuExtension(Extension):
         ident_map = {}
         menu = QMenu(parent)
         menu.setStyleSheet(_MENU_QSS)
+        if not lst.get("show_icons", True):
+            menu.setIconSize(QSize(0, 0))
         self._build_menu_node(menu, lst, ident_map)
         if not menu.actions():
             menu.deleteLater()
@@ -330,7 +332,7 @@ class ListMenuExtension(Extension):
                     continue
                 elif entry.get("brush") is not None:
                     bfile = entry.get("brush", "")
-                    slices.append((entry.get("label", bfile), None,
+                    slices.append((entry.get("label", bfile), self._brush_icon(bfile),
                                    lambda f=bfile: run_brush(f)))
                     continue
                 elif entry.get("name") is not None:
@@ -386,6 +388,8 @@ class ListMenuExtension(Extension):
             if not lst.get("active", True):
                 continue
             sub = menu.addMenu(lst["name"])
+            if not lst.get("show_icons", True):
+                sub.setIconSize(QSize(0, 0))
             self._build_menu_node(sub, lst, ident_map)
         menu.addSeparator()
         edit_act = menu.addAction("Configure Custom Modular Menu…")
@@ -424,6 +428,21 @@ class ListMenuExtension(Extension):
         act.triggered.connect(native.trigger)
         return act
 
+    def _brush_icon(self, filename):
+        """Return a QIcon built from a brush preset's thumbnail image (or None)."""
+        try:
+            for p in Krita.instance().resources("preset").values():
+                try:
+                    if p.filename() == filename:
+                        img = p.image()
+                        if not img.isNull():
+                            return QIcon(QPixmap.fromImage(img))
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        return None
+
     def _build_menu_node(self, parent_menu, node, ident_map=None):
         """Recursively add a menu node's commands, scripts and submenus.
 
@@ -455,6 +474,9 @@ class ListMenuExtension(Extension):
                     continue
                 elif entry.get("brush") is not None:
                     br_act = QAction(entry.get("label", entry["brush"]), parent_menu)
+                    icon = self._brush_icon(entry.get("brush", ""))
+                    if icon is not None:
+                        br_act.setIcon(icon)
                     if ident_map is not None:
                         ident_map[br_act] = ("brush", entry.get("brush", ""))
                     br_act.triggered.connect(

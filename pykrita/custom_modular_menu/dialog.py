@@ -12,6 +12,7 @@ from PyQt5.QtGui import QBrush, QColor, QFont, QKeySequence
 from PyQt5.QtWidgets import (
     QAbstractItemView,
     QApplication,
+    QCheckBox,
     QComboBox,
     QDialog,
     QFileDialog,
@@ -177,6 +178,7 @@ class ListMenuDialog(QDialog):
         self._build_ui()
         self._reload_sidebar()
         self._update_form_combo()
+        self._update_show_icons_check()
         self._render_current()
         self._update_left_shortcut()
         self._render_preview()
@@ -287,6 +289,12 @@ class ListMenuDialog(QDialog):
         form_row.addWidget(self.form_combo)
         form_row.addStretch()
         st.addLayout(form_row)
+
+        # Show icons (Krita action icons + brush thumbnails)
+        self.show_icons_check = QCheckBox("Show icons")
+        self.show_icons_check.setToolTip("Display Krita action icons and brush thumbnails in this menu.")
+        self.show_icons_check.toggled.connect(self._on_show_icons_changed)
+        st.addWidget(self.show_icons_check)
 
         # Per-list popup shortcut (inside Menu Settings)
         sc_row = QHBoxLayout()
@@ -450,6 +458,7 @@ class ListMenuDialog(QDialog):
             self.path = [self.lists[row]]
             self._update_left_shortcut()
             self._update_form_combo()
+            self._update_show_icons_check()
             self._render_current()
 
     def _cur_top_list(self):
@@ -476,6 +485,25 @@ class ListMenuDialog(QDialog):
         idx = self.form_combo.findData(lst.get("form", "list"))
         self.form_combo.setCurrentIndex(max(0, idx))
         self.form_combo.blockSignals(False)
+
+    def _on_show_icons_changed(self):
+        lst = self._cur_top_list()
+        if lst is None:
+            return
+        lst["show_icons"] = self.show_icons_check.isChecked()
+        save_config(self.popup_shortcut, self.lists)
+        notify_refresh()
+
+    def _update_show_icons_check(self):
+        lst = self._cur_top_list()
+        self.show_icons_check.blockSignals(True)
+        if lst is None:
+            self.show_icons_check.setEnabled(False)
+            self.show_icons_check.blockSignals(False)
+            return
+        self.show_icons_check.setEnabled(True)
+        self.show_icons_check.setChecked(bool(lst.get("show_icons", True)))
+        self.show_icons_check.blockSignals(False)
 
     def _sync_lists_order(self, *_):
         by_name = {lst["name"]: lst for lst in self.lists}
