@@ -17,7 +17,7 @@ import time
 from krita import Extension, Krita
 from PyQt5.QtCore import QEvent, QObject, QPoint, QSize, Qt
 from PyQt5.QtGui import (QColor, QCursor, QFont, QIcon, QKeySequence,
-                         QPalette, QPixmap)
+                         QPainter, QPalette, QPixmap)
 from PyQt5.QtWidgets import (
     QAction,
     QApplication,
@@ -26,6 +26,8 @@ from PyQt5.QtWidgets import (
     QMenu,
     QPlainTextEdit,
     QTextEdit,
+    QWidget,
+    QWidgetAction,
 )
 
 from .config import (load_last_identity, load_lists, notify_refresh,
@@ -56,6 +58,70 @@ def _apply_dark_theme(menu):
     pal.setColor(QPalette.Disabled, QPalette.Text, QColor(154, 154, 154))
     pal.setColor(QPalette.Disabled, QPalette.WindowText, QColor(154, 154, 154))
     menu.setPalette(pal)
+
+
+class _MenuRow(QWidget):
+    """Self-painted menu row (icon + text + optional shortcut).
+
+    Krita applies a global stylesheet, which turns every QMenu into a
+    QStyleSheetStyle — and that style drops QMenu action icons. A plain QAction
+    therefore can never show an icon in a Krita QMenu. Using a QWidgetAction and
+    painting the row ourselves (icon + text) bypasses the stylesheet and
+    guarantees the icon renders. Hover highlight is painted from the palette.
+    """
+
+    def __init__(self, text, parent=None, icon=None, shortcut=""):
+        super().__init__(parent)
+        self._text = text
+        self._icon = icon
+        self._shortcut = shortcut
+        self._hover = False
+        self.setMouseTracking(True)
+
+    def sizeHint(self):
+        fm = self.fontMetrics()
+        w = fm.horizontalAdvance(self._text) + 34
+        if self._icon is not None and not self._icon.isNull():
+            w += 26
+        if self._shortcut:
+            w += fm.horizontalAdvance(self._shortcut) + 26
+        return QSize(w, 24)
+
+    def enterEvent(self, e):
+        self._hover = True
+        self.update()
+        super().enterEvent(e)
+
+    def leaveEvent(self, e):
+        self._hover = False
+        self.update()
+        super().leaveEvent(e)
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        pal = self.palette()
+        if self._hover and self.isEnabled():
+            p.fillRect(self.rect(), pal.highlight())
+        if not self.isEnabled():
+            p.setPen(QColor(154, 154, 154))
+        elif self._hover:
+            p.setPen(pal.highlightedText().color())
+        else:
+            p.setPen(pal.text().color())
+        fm = self.fontMetrics()
+        x = 6
+        y = (self.height() - fm.height()) // 2
+        if self._icon is not None and not self._icon.isNull():
+            size = 18
+            p.drawPixmap(x, (self.height() - size) // 2,
+                         self._icon.pixmap(QSize(size, size)))
+            x += size + 8
+        p.drawText(x, y + fm.ascent(), self._text)
+        if self._shortcut:
+            p.setPen(QColor("#808080"))
+            sw = fm.horizontalAdvance(self._shortcut)
+            p.drawText(self.width() - sw - 10, y + fm.ascent(), self._shortcut)
+        p.end()
 
 
 class _KeyFilter(QObject):
@@ -384,37 +450,46 @@ class ListMenuExtension(Extension):
         self._force_close_on_trigger(menu)
         return menu
 
-    def _add_popup_action(self, menu, action_id, label=""):
-        act = self._make_item_action(action_id, label, menu)
-        if act is not None:
-            menu.addAction(act)
+    def _add_row(self, menu, text, icon, callback, shortcut="", enabled=True):
+        """Add a QWidgetAction row that paints its own icon+text, so icons render
+        even under Krita's global stylesheet (which makes QMenu drop action icons).
+        Returns the QWidgetAction."""
+        act = QWidgetAction(menu)
+        row = _MenuRow(text, icon=icon, shortcut=shortcut)
+        row.setPalette(menu.palette())
+        row.setEnabled(enabled)
+        act.setDefaultWidget(row)
+        act.setEnabled(enabled)
+        if callback is not None:
+            act.triggered.connect(lambda _=False: callback())
+        menu.addAction(act)
+        return act
 
-    def _make_item_action(self, action_id, label, parent, show_icons=True):
-        """Return a QAction for a menu item.
-
-        show_icons True + no custom label -> reuse Krita's native QAction (keeps
-        icon + live enable/disable). Otherwise -> proxy QAction (custom text,
-        icon copied from native when enabled) that triggers the native action.
-        """
+    def _add_cmd(self, menu, action_id, label, show_icons, ident_map):
+        """Add a command (Krita action) row; trigger() runs the native action."""
         try:
             native = Krita.instance().action(action_id)
         except RuntimeError:
             native = None
         if native is None:
-            return None
-        if not label and show_icons:
-            return native
-        act = QAction(label or native.text().replace("&", "").strip(), parent)
+            return
+        text = label or native.text().replace("&", "").strip()
+        icon = None
         if show_icons:
-            icon = native.icon()
-            if not icon.isNull():
-                act.setIcon(icon)
+            try:
+                icon = native.icon()
+                if icon.isNull():
+                    icon = None
+            except RuntimeError:
+                icon = None
         try:
-            act.setEnabled(native.isEnabled())
-        except RuntimeError:
-            pass
-        act.triggered.connect(native.trigger)
-        return act
+            sc = native.shortcut().toString(QKeySequence.NativeText)
+        except Exception:
+            sc = ""
+        act = self._add_row(menu, text, icon, native.trigger, shortcut=sc,
+                            enabled=native.isEnabled())
+        if ident_map is not None:
+            ident_map[act] = ("cmd", action_id)
 
     def _brush_icon(self, name):
         """Return a QIcon built from a brush preset's thumbnail image (or None)."""
@@ -442,57 +517,40 @@ class ListMenuExtension(Extension):
     def _build_menu_node(self, parent_menu, node, ident_map=None, show_icons=True):
         """Recursively add a menu node's commands, scripts and submenus.
 
-        ident_map (optional) maps each added leaf QAction -> an identity tuple,
-        so the popup can remember/relocate the last-triggered item.
+        ident_map (optional) maps each added leaf QWidgetAction -> an identity
+        tuple, so the popup can remember/relocate the last-triggered item.
         """
         for entry in node.get("items", []):
-            aid, label = None, ""
             if isinstance(entry, str):
-                aid = entry
-            elif isinstance(entry, dict):
-                if entry.get("id"):
-                    aid, label = entry["id"], entry.get("label", "")
-                elif entry.get("script") is not None:
-                    sact = QAction(entry.get("label", "Script"), parent_menu)
-                    if ident_map is not None:
-                        ident_map[sact] = ("script", entry.get("label", "Script"))
-                    sact.triggered.connect(
-                        lambda _=False, c=entry.get("script", ""): run_script(c))
-                    parent_menu.addAction(sact)
-                    continue
-                elif entry.get("blend") is not None:
-                    bact = QAction(entry.get("label", entry["blend"]), parent_menu)
-                    if ident_map is not None:
-                        ident_map[bact] = ("blend", entry.get("blend", ""))
-                    bact.triggered.connect(
-                        lambda _=False, o=entry.get("blend", ""): run_composite_op(o))
-                    parent_menu.addAction(bact)
-                    continue
-                elif entry.get("brush") is not None:
-                    br_act = QAction(entry.get("label", entry["brush"]), parent_menu)
-                    if show_icons:
-                        icon = self._brush_icon(entry.get("brush", ""))
-                        if icon is not None:
-                            br_act.setIcon(icon)
-                    if ident_map is not None:
-                        ident_map[br_act] = ("brush", entry.get("brush", ""))
-                    br_act.triggered.connect(
-                        lambda _=False, f=entry.get("brush", ""): run_brush(f))
-                    parent_menu.addAction(br_act)
-                    continue
-                elif entry.get("name") is not None:
-                    sub = parent_menu.addMenu(entry["name"])
-                    self._build_menu_node(sub, entry, ident_map, show_icons)
-                    continue
-                else:
-                    continue
-            else:
+                self._add_cmd(parent_menu, entry, "", show_icons, ident_map)
                 continue
-            act = self._make_item_action(aid, label, parent_menu, show_icons)
-            if act is not None:
+            if not isinstance(entry, dict):
+                continue
+            if entry.get("id"):
+                self._add_cmd(parent_menu, entry["id"], entry.get("label", ""),
+                              show_icons, ident_map)
+            elif entry.get("script") is not None:
+                label = entry.get("label", "Script")
+                act = self._add_row(parent_menu, label, None,
+                                    lambda c=entry.get("script", ""): run_script(c))
                 if ident_map is not None:
-                    ident_map[act] = ("cmd", aid)
-                parent_menu.addAction(act)
+                    ident_map[act] = ("script", label)
+            elif entry.get("blend") is not None:
+                label = entry.get("label", entry["blend"])
+                act = self._add_row(parent_menu, label, None,
+                                    lambda o=entry.get("blend", ""): run_composite_op(o))
+                if ident_map is not None:
+                    ident_map[act] = ("blend", entry.get("blend", ""))
+            elif entry.get("brush") is not None:
+                label = entry.get("label", entry["brush"])
+                icon = self._brush_icon(entry.get("brush", "")) if show_icons else None
+                act = self._add_row(parent_menu, label, icon,
+                                    lambda f=entry.get("brush", ""): run_brush(f))
+                if ident_map is not None:
+                    ident_map[act] = ("brush", entry.get("brush", ""))
+            elif entry.get("name") is not None:
+                sub = parent_menu.addMenu(entry["name"])
+                self._build_menu_node(sub, entry, ident_map, show_icons)
 
     def _force_close_on_trigger(self, menu):
         """Force the menu to close after ANY item is clicked (even checkable).
