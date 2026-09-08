@@ -8,7 +8,7 @@ import json
 import os
 import sqlite3
 
-from krita import Krita
+from krita import Krita, Palette
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QBrush, QColor, QFont, QIcon, QKeySequence, QPixmap
 from PyQt5.QtWidgets import (
@@ -201,8 +201,8 @@ def _add_brush_value(dlg, payload):
 
 def _enum_colors(dlg, needle):
     # pickers first, then the default palette (added as foreground)
-    yield ("__pick_fg__", "Pick Foreground colour…")
-    yield ("__pick_bg__", "Pick Background colour…")
+    yield ("__pick_fg__", "Pick Foreground color…")
+    yield ("__pick_bg__", "Pick Background color…")
     for hexc, name in DEFAULT_PALETTE:
         if needle and needle not in name.lower() and needle not in hexc.lower():
             continue
@@ -233,6 +233,12 @@ def _append_color(dlg, hexc, target):
     label = "%s (%s)" % (hexc, "Fg" if target == "fg" else "Bg")
     dlg._cur_items().append({"color": hexc, "target": target, "label": label})
     dlg._render_items()
+
+
+def _enum_palettes(dlg, needle):
+    # The palette source renders a palette -> colors tree in _reload_available;
+    # this enum is a no-op placeholder required by the AddSource signature.
+    return iter(())
 
 
 def _enum_brushes(dlg, needle):
@@ -266,7 +272,8 @@ ADD_SOURCES = [
     AddSource("blend", "Layer Blend Mode", TYPE_BLEND, _enum_blend, _add_blend),
     AddSource("bblend", "Brush Blend Mode", TYPE_BBLEND, _enum_brush_blend, _add_brush_blend),
     AddSource("bval", "Brush Value", TYPE_BVAL, _enum_brush_values, _add_brush_value),
-    AddSource("color", "Colour", TYPE_COLOR, _enum_colors, _add_color),
+    AddSource("color", "Color", TYPE_COLOR, _enum_colors, _add_color),
+    AddSource("palette", "Krita Palettes", TYPE_COLOR, _enum_palettes, _add_color),
     AddSource("brush", "Brushes", TYPE_BRUSH, _enum_brushes, _add_brush),
 ]
 
@@ -769,6 +776,64 @@ class ListMenuDialog(QDialog):
         except Exception:
             return None
 
+    @staticmethod
+    def _swatch_to_hex(sw):
+        """Convert a palette Swatch to a #rrggbb hex string (from display-ordered
+        RGB components). Returns None on any error / non-RGB model."""
+        try:
+            mc = sw.color()
+            if mc is None:
+                return None
+            comps = mc.componentsOrdered()
+            if len(comps) < 3:
+                return None
+            r = int(round(max(0.0, min(1.0, comps[0])) * 255))
+            g = int(round(max(0.0, min(1.0, comps[1])) * 255))
+            b = int(round(max(0.0, min(1.0, comps[2])) * 255))
+            return "#%02x%02x%02x" % (r, g, b)
+        except Exception:
+            return None
+
+    def _populate_palette_tree(self, needle):
+        """Fill the Add pane with Krita palettes -> their colours as addable
+        swatches (colour items reuse the Color source's add path)."""
+        try:
+            pals = Krita.instance().resources("palette")
+        except Exception:
+            return
+        for name, res in pals.items():
+            if needle and needle not in name.lower():
+                continue
+            parent = QTreeWidgetItem([name])
+            parent.setData(0, ROLE_TYPE, TYPE_CAT)
+            parent.setIcon(0, self._color_swatch_icon("#808080"))
+            self.add_tree.addTopLevelItem(parent)
+            try:
+                pal = Palette(res)
+                n = pal.numberOfEntries()
+                for i in range(n):
+                    try:
+                        sw = pal.entryByIndex(i)
+                        if sw is None or not sw.isValid():
+                            continue
+                        hexc = self._swatch_to_hex(sw)
+                        if not hexc:
+                            continue
+                        cname = (sw.name() or "").strip()
+                        label = cname if cname else hexc
+                        child = QTreeWidgetItem([label])
+                        child.setData(0, ROLE_TOKEN, "fg:" + hexc)
+                        child.setData(0, ROLE_TYPE, TYPE_COLOR)
+                        icon = self._color_swatch_icon(hexc)
+                        if icon is not None:
+                            child.setIcon(0, icon)
+                        parent.addChild(child)
+                    except Exception:
+                        continue
+            except Exception:
+                continue
+        self.add_tree.expandAll()
+
     def _get_presets(self):
         """Cached dict of all Krita brush presets (name -> Resource)."""
         if self._presets is None:
@@ -955,6 +1020,8 @@ class ListMenuDialog(QDialog):
                     leaf.setData(0, ROLE_TOKEN, action_id)
                     leaf.setData(0, ROLE_TYPE, TYPE_CMD)
                     parent.addChild(leaf)
+        elif src.key == "palette":
+            self._populate_palette_tree(needle)
         else:
             current_tag = None
             if src.key == "brush":
