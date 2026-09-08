@@ -33,7 +33,7 @@ from PyQt5.QtWidgets import (
 from .config import (load_last_identity, load_lists, notify_refresh,
                      register_refresh, save_last_identity, run_brush,
                      run_brush_blend, run_brush_value, run_composite_op,
-                     run_script, run_set_color)
+                     run_set_color)
 from .pie import PieWidget
 
 # Keys that on their own are modifiers, not real shortcuts
@@ -426,11 +426,6 @@ class ListMenuExtension(Extension):
             elif isinstance(entry, dict):
                 if entry.get("id"):
                     aid, label = entry["id"], entry.get("label", "")
-                elif entry.get("script") is not None:
-                    code = entry.get("script", "")
-                    slices.append((entry.get("label", "Script"), None,
-                                   lambda c=code: run_script(c)))
-                    continue
                 elif entry.get("blend") is not None:
                     oid = entry.get("blend", "")
                     slices.append((entry.get("label", oid), None,
@@ -660,7 +655,7 @@ class ListMenuExtension(Extension):
         return icon
 
     def _build_menu_node(self, parent_menu, node, ident_map=None, show_icons=True):
-        """Recursively add a menu node's commands, scripts and submenus.
+        """Recursively add a menu node's commands and submenus.
 
         ident_map (optional) maps each added leaf QWidgetAction -> an identity
         tuple, so the popup can remember/relocate the last-triggered item.
@@ -674,12 +669,6 @@ class ListMenuExtension(Extension):
             if entry.get("id"):
                 self._add_cmd(parent_menu, entry["id"], entry.get("label", ""),
                               show_icons, ident_map)
-            elif entry.get("script") is not None:
-                label = entry.get("label", "Script")
-                act = self._add_row(parent_menu, label, None,
-                                    lambda c=entry.get("script", ""): run_script(c))
-                if ident_map is not None:
-                    ident_map[act] = ("script", label)
             elif entry.get("blend") is not None:
                 label = entry.get("label", entry["blend"])
                 act = self._add_row(parent_menu, label, None,

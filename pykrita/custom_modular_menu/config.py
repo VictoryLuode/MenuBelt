@@ -167,8 +167,8 @@ DEFAULT_POPUP_SHORTCUT = ""  # whole-menu popup trigger key
 def _clean_items(items):
     """Normalise raw items recursively.
 
-    command -> {"id","label"};  script -> {"script","label"};
-    blend   -> {"blend","label"};  submenu -> {"name","shortcut","items": [...]}.
+    command -> {"id","label"};  blend -> {"blend","label"};
+    submenu -> {"name","shortcut","items": [...]}.
     Plain string -> command without custom label.
     """
     out = []
@@ -178,9 +178,6 @@ def _clean_items(items):
         elif isinstance(it, dict):
             if it.get("id"):
                 out.append({"id": it["id"], "label": it.get("label", "") or ""})
-            elif it.get("script") is not None:
-                out.append({"script": it.get("script", ""),
-                            "label": it.get("label", "") or ""})
             elif it.get("blend") is not None:
                 out.append({"blend": it.get("blend", ""),
                             "label": it.get("label", "") or ""})
@@ -241,9 +238,6 @@ def _serialize_items(items):
             aid = it["id"]
             label = it.get("label", "") or ""
             out.append({"id": aid, "label": label} if label else aid)
-        elif it.get("script") is not None:
-            out.append({"script": it.get("script", ""),
-                        "label": it.get("label", "") or ""})
         elif it.get("blend") is not None:
             out.append({"blend": it.get("blend", ""),
                         "label": it.get("label", "") or ""})
@@ -413,11 +407,6 @@ def _candidate_action_dirs():
             dirs.append(os.path.join(appdir, rel))
     except Exception:
         pass
-    try:
-        import glob
-        dirs.extend(glob.glob("D:/Program Files/Scoop/apps/krita/*/share/krita/actions"))
-    except Exception:
-        pass
     return dirs
 
 
@@ -451,18 +440,6 @@ def load_action_categories():
     except Exception:
         return {}
     return mapping
-
-
-def run_script(code):
-    """Execute a user-supplied Python snippet in a namespace with Krita access."""
-    if not isinstance(code, str) or not code.strip():
-        return
-    app = Krita.instance()
-    try:
-        exec(code, {"__builtins__": __builtins__,
-                    "Krita": Krita, "krita": app, "app": app})
-    except Exception as e:
-        print(f"[CMM] script error: {e}")
 
 
 def run_composite_op(op_id):

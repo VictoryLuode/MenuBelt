@@ -1,6 +1,6 @@
 """Custom Modular Menu (CMM) - multi-list editor dialog.
 
-Supports nested menus, custom-named commands, and Python script items. Provides
+Supports nested menus, custom-named commands. Provides
 a live Current Menu list, shortcut conflict detection, and config export/import.
 """
 
@@ -15,7 +15,6 @@ from PyQt5.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QCheckBox,
-    QColorDialog,
     QComboBox,
     QDialog,
     QFileDialog,
@@ -54,7 +53,6 @@ ROLE_TOKEN = Qt.UserRole + 1
 ROLE_TYPE = Qt.UserRole + 2
 TYPE_CMD = "cmd"
 TYPE_MENU = "menu"
-TYPE_SCRIPT = "script"
 TYPE_BLEND = "blend"
 TYPE_CAT = "category"
 TYPE_BRUSH = "brush"
@@ -199,15 +197,7 @@ def _add_brush_value(dlg, payload):
 
 
 def _add_color(dlg, payload):
-    if payload == "__pick_fg__":
-        col = QColorDialog.getColor()
-        if col.isValid():
-            _append_color(dlg, col.name(), "fg")
-    elif payload == "__pick_bg__":
-        col = QColorDialog.getColor()
-        if col.isValid():
-            _append_color(dlg, col.name(), "bg")
-    elif payload.startswith("fg:") or payload.startswith("bg:"):
+    if payload.startswith("fg:") or payload.startswith("bg:"):
         target, hexc = payload.split(":", 1)
         _append_color(dlg, hexc, target)
 
@@ -286,6 +276,8 @@ class ListMenuDialog(QDialog):
         self._tags_loaded = False   # lazy: brush tag filter data
         self._brush_tags = []       # sorted tag names for brush presets
         self._preset_tags = {}      # preset name -> frozenset(tag names)
+        self._palette_cache = None  # lazy: {palette_name -> [(hex, name), ...]}
+        self._checkable_actions = None  # lazy: [(action_id, label)] for toggle picker
         self._sources = sorted(ADD_SOURCES, key=lambda s: s.label.lower())
         self._action_categories = load_action_categories()
         catalog_ids = set(self._catalog.keys())
@@ -299,6 +291,7 @@ class ListMenuDialog(QDialog):
         self._render_current()
         self._update_left_shortcut()
         self._update_tag_widget()
+        self._reload_available()
 
     # ---------- Size (remembered) ----------
     def _apply_default_size(self):
@@ -706,8 +699,6 @@ class ListMenuDialog(QDialog):
         if isinstance(it, dict):
             if it.get("id"):
                 return it["id"]
-            if it.get("script") is not None:
-                return "script:" + (it.get("label", "") or "")
             if it.get("blend") is not None:
                 return "blend:" + (it.get("blend", "") or "")
             if it.get("bblend") is not None:
@@ -782,23 +773,21 @@ class ListMenuDialog(QDialog):
         except Exception:
             return None
 
-    def _populate_palette_tree(self, needle):
-        """Fill the Add pane with Krita palettes -> their colours as addable
-        swatches (colour items reuse the Color source's add path)."""
+    def _ensure_palette_cache(self):
+        """Build the palette -> colours cache once (avoids re-parsing every
+        palette on every visit to the Krita Palettes source)."""
+        if self._palette_cache is not None:
+            return
+        cache = {}
         try:
             pals = Krita.instance().resources("palette")
         except Exception:
-            return
+            pals = {}
         for name, res in pals.items():
-            if needle and needle not in name.lower():
-                continue
-            parent = QTreeWidgetItem([name])
-            parent.setData(0, ROLE_TYPE, TYPE_CAT)
-            parent.setIcon(0, self._color_swatch_icon("#808080"))
-            self.add_tree.addTopLevelItem(parent)
             try:
                 pal = Palette(res)
                 n = pal.numberOfEntries()
+                items = []
                 for i in range(n):
                     try:
                         sw = pal.entryByIndex(i)
@@ -808,18 +797,34 @@ class ListMenuDialog(QDialog):
                         if not hexc:
                             continue
                         cname = (sw.name() or "").strip()
-                        label = cname if cname else hexc
-                        child = QTreeWidgetItem([label])
-                        child.setData(0, ROLE_TOKEN, "fg:" + hexc)
-                        child.setData(0, ROLE_TYPE, TYPE_COLOR)
-                        icon = self._color_swatch_icon(hexc)
-                        if icon is not None:
-                            child.setIcon(0, icon)
-                        parent.addChild(child)
+                        items.append((hexc, cname if cname else hexc))
                     except Exception:
                         continue
+                if items:
+                    cache[name] = items
             except Exception:
                 continue
+        self._palette_cache = cache
+
+    def _populate_palette_tree(self, needle):
+        """Fill the Add pane with Krita palettes -> their colours as addable
+        swatches (colour items reuse the Color source's add path)."""
+        self._ensure_palette_cache()
+        for name, items in self._palette_cache.items():
+            if needle and needle not in name.lower():
+                continue
+            parent = QTreeWidgetItem([name])
+            parent.setData(0, ROLE_TYPE, TYPE_CAT)
+            parent.setIcon(0, self._color_swatch_icon("#808080"))
+            self.add_tree.addTopLevelItem(parent)
+            for hexc, label in items:
+                child = QTreeWidgetItem([label])
+                child.setData(0, ROLE_TOKEN, "fg:" + hexc)
+                child.setData(0, ROLE_TYPE, TYPE_COLOR)
+                icon = self._color_swatch_icon(hexc)
+                if icon is not None:
+                    child.setIcon(0, icon)
+                parent.addChild(child)
         self.add_tree.expandAll()
 
     def _get_presets(self):
@@ -870,8 +875,6 @@ class ListMenuDialog(QDialog):
             elif isinstance(it, dict):
                 if it.get("id"):
                     text = it.get("label", "") or self._catalog.get(it["id"], it["id"])
-                elif it.get("script") is not None:
-                    typ, text = TYPE_SCRIPT, f"[script] {it.get('label', 'Script')}"
                 elif it.get("blend") is not None:
                     typ, text = TYPE_BLEND, f"\u25c6 {it.get('label', it['blend'])}"
                 elif it.get("bblend") is not None:
@@ -902,7 +905,6 @@ class ListMenuDialog(QDialog):
             font.setItalic(typ not in (TYPE_MENU, TYPE_SEP, TYPE_HEADER))
             entry.setFont(font)
             self.items_list.addItem(entry)
-        self._reload_available()
 
     def _existing_cmd_ids(self):
         out = set()
@@ -1110,18 +1112,21 @@ class ListMenuDialog(QDialog):
     def _add_toggle(self):
         if not self.path:
             return
-        checkable = []
-        try:
-            for a in Krita.instance().actions():
-                try:
-                    if a.isCheckable() and a.objectName():
-                        label = a.text().replace("&", "").strip() or a.objectName()
-                        checkable.append((a.objectName(), label))
-                except Exception:
-                    continue
-        except Exception:
+        if self._checkable_actions is None:
             checkable = []
-        checkable.sort(key=lambda x: x[1].lower())
+            try:
+                for a in Krita.instance().actions():
+                    try:
+                        if a.isCheckable() and a.objectName():
+                            label = a.text().replace("&", "").strip() or a.objectName()
+                            checkable.append((a.objectName(), label))
+                    except Exception:
+                        continue
+            except Exception:
+                checkable = []
+            checkable.sort(key=lambda x: x[1].lower())
+            self._checkable_actions = checkable
+        checkable = self._checkable_actions
         if not checkable:
             QMessageBox.information(self, "Add Toggle", "No checkable Krita actions found.")
             return
@@ -1141,6 +1146,7 @@ class ListMenuDialog(QDialog):
             return
         self._cur_items().pop(row)
         self._render_items()
+        self._reload_available()
 
     def _rename_item(self):
         row = self.items_list.currentRow()
@@ -1155,13 +1161,6 @@ class ListMenuDialog(QDialog):
                 cur["name"] = new_name.strip()
                 self._render_items()
                 self._render_path_bar()
-            return
-        if isinstance(cur, dict) and cur.get("script") is not None:
-            new_label, ok = QInputDialog.getText(
-                self, "Rename Script", "Script name:", text=cur.get("label", ""))
-            if ok:
-                cur["label"] = new_label.strip()
-                self._render_items()
             return
         if isinstance(cur, dict) and cur.get("blend") is not None:
             new_label, ok = QInputDialog.getText(
