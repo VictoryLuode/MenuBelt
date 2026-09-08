@@ -235,10 +235,10 @@ class ListMenuDialog(QDialog):
         pos_row.addWidget(QLabel("Popup position:"))
         self.pos_combo = QComboBox()
         self.pos_combo.addItem("Last used", "last")
-        self.pos_combo.addItem("Standard (cursor)", "cursor")
+        self.pos_combo.addItem("Standard", "cursor")
         self.pos_combo.setToolTip(
             "Last used: open where the previously-chosen item is, under the cursor.\n"
-            "Standard (cursor): open at the current cursor position.")
+            "Standard: open at the current cursor position.")
         self.pos_combo.currentIndexChanged.connect(self._on_pos_changed)
         pos_row.addWidget(self.pos_combo)
         pos_row.addStretch()

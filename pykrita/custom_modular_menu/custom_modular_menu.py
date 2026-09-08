@@ -232,7 +232,7 @@ class ListMenuExtension(Extension):
         self._popup_active = True
         try:
             triggered = menu.exec_(pos, at)
-            if triggered is not None and at is not None:
+            if triggered is not None and pos_mode == "last":
                 ident = ident_map.get(triggered)
                 if ident is not None:
                     self._last_identity = ident
