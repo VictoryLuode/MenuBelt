@@ -47,6 +47,8 @@ class _KeyFilter(QObject):
 
     def eventFilter(self, obj, event):
         if event.type() == QEvent.KeyPress:
+            if event.isAutoRepeat():
+                return False  # ignore key auto-repeat while held (prevents re-triggering)
             key = event.key()
             if key in _MODIFIER_KEYS:
                 return False

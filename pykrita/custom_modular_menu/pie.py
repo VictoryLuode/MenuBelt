@@ -63,9 +63,8 @@ class PieWidget(QWidget):
         dx = pos.x() - c.x()
         dy = pos.y() - c.y()
         dist = math.hypot(dx, dy)
-        if dist < self.DEADZONE or self._n == 0:
-            self._sel = -1
-        else:
+        new_sel = -1
+        if dist >= self.DEADZONE and self._n:
             ang = math.atan2(dy, dx)
             best, best_diff = -1, 1e9
             for k in range(self._n):
@@ -73,8 +72,10 @@ class PieWidget(QWidget):
                 diff = abs(self._norm(ang - a))
                 if diff < best_diff:
                     best_diff, best = diff, k
-            self._sel = best
-        self.update()
+            new_sel = best
+        if new_sel != self._sel:
+            self._sel = new_sel
+            self.update()
 
     @staticmethod
     def _norm(a):
