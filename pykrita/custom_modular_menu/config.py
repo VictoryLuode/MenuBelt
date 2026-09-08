@@ -221,7 +221,8 @@ def _clean_lists(lists):
             "name": lst["name"],
             "shortcut": lst.get("shortcut", "") or "",
             "active": bool(lst.get("active", True)),
-            "form": lst.get("form", "list"),
+            # menu_mode is the current field; migrate legacy "form" on load.
+            "menu_mode": lst.get("menu_mode", lst.get("form", "list")),
             "show_icons": bool(lst.get("show_icons", True)),
             "items": _clean_items(lst.get("items", [])),
         })
@@ -280,7 +281,7 @@ def _serialize_lists(lists):
             "name": lst.get("name", ""),
             "shortcut": lst.get("shortcut", "") or "",
             "active": bool(lst.get("active", True)),
-            "form": lst.get("form", "list"),
+            "menu_mode": lst.get("menu_mode", lst.get("form", "list")),
             "show_icons": bool(lst.get("show_icons", True)),
             "items": _serialize_items(lst.get("items", [])),
         })

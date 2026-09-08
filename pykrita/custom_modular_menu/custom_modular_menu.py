@@ -289,7 +289,7 @@ class ListMenuExtension(Extension):
             key = lst.get("shortcut", "")
             if key:
                 name = lst["name"]
-                if lst.get("form", "list") == "pie":
+                if lst.get("menu_mode", lst.get("form", "list")) == "pie":
                     self._shortcut_map[key] = (lambda n=name: self.pop_pie(n))
                 else:
                     self._shortcut_map[key] = (lambda n=name: self.pop_list(n))

@@ -588,7 +588,7 @@ class ListMenuDialog(QDialog):
         lst = self._cur_top_list()
         if lst is None:
             return
-        lst["form"] = self.form_combo.currentData()
+        lst["menu_mode"] = self.form_combo.currentData()
         save_config(self.popup_shortcut, self.lists)
         notify_refresh()
 
@@ -600,7 +600,7 @@ class ListMenuDialog(QDialog):
             self.form_combo.blockSignals(False)
             return
         self.form_combo.setEnabled(True)
-        idx = self.form_combo.findData(lst.get("form", "list"))
+        idx = self.form_combo.findData(lst.get("menu_mode", lst.get("form", "list")))
         self.form_combo.setCurrentIndex(max(0, idx))
         self.form_combo.blockSignals(False)
 
