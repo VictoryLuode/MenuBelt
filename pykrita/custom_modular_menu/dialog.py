@@ -746,6 +746,10 @@ class ListMenuDialog(QDialog):
                 leaf = QTreeWidgetItem([text])
                 leaf.setData(0, ROLE_TOKEN, payload)
                 leaf.setData(0, ROLE_TYPE, src.item_type)
+                if src.key == "brush":
+                    icon = self._brush_pixmap_icon(payload)
+                    if icon is not None:
+                        leaf.setIcon(0, icon)
                 self.add_tree.addTopLevelItem(leaf)
         self.add_tree.expandAll()
 

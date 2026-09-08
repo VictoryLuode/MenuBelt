@@ -40,8 +40,9 @@ _MODIFIER_KEYS = (
 )
 _TEXT_INPUTS = (QLineEdit, QTextEdit, QPlainTextEdit, QKeySequenceEdit)
 
-# Dark Blender-like theme applied via QPalette (keeps action/brush icons) plus a
-# thin grey separator. Using QMenu::item stylesheet would suppress item icons.
+# Dark Blender-like theme applied via QPalette only. ANY setStyleSheet on a QMenu
+# switches it to QStyleSheetStyle, which stops drawing item icons — so the theme
+# must use the palette alone (separator = QPalette.Mid) to keep icons.
 def _apply_dark_theme(menu):
     pal = menu.palette()
     pal.setColor(QPalette.Window, QColor(33, 33, 33))
@@ -51,10 +52,10 @@ def _apply_dark_theme(menu):
     pal.setColor(QPalette.ButtonText, QColor(232, 232, 232))
     pal.setColor(QPalette.Highlight, QColor(61, 61, 61))
     pal.setColor(QPalette.HighlightedText, QColor(255, 255, 255))
+    pal.setColor(QPalette.Mid, QColor(58, 58, 58))
     pal.setColor(QPalette.Disabled, QPalette.Text, QColor(154, 154, 154))
     pal.setColor(QPalette.Disabled, QPalette.WindowText, QColor(154, 154, 154))
     menu.setPalette(pal)
-    menu.setStyleSheet("QMenu::separator { background-color: #3a3a3a; height: 1px; margin: 4px 8px; }")
 
 
 class _KeyFilter(QObject):
