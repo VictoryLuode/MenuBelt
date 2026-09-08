@@ -56,6 +56,8 @@ def _apply_dark_theme(menu):
     pal.setColor(QPalette.Disabled, QPalette.Text, QColor(154, 154, 154))
     pal.setColor(QPalette.Disabled, QPalette.WindowText, QColor(154, 154, 154))
     menu.setPalette(pal)
+    # Force a non-zero icon column so action/brush icons actually show.
+    menu.setIconSize(QSize(20, 20))
 
 
 class _KeyFilter(QObject):
