@@ -1,4 +1,4 @@
-# MenuBelt — Krita Plugin
+![MenuBelt](assets/menubelt-poster.png)
 
 Build your own **multi-list action menus** in Krita and reach them from a **cursor popup**
 or the **Tools → MenuBelt** submenu — as a **linear List** or a **Blender-style radial Pie**.
