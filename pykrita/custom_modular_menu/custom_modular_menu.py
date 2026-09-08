@@ -247,6 +247,7 @@ class ListMenuExtension(Extension):
         parent = self._active_window_widget()
         ident_map = {}
         menu = QMenu(parent)
+        menu.setStyleSheet("QMenu::separator { background-color: #808080; height: 1px; margin: 2px 6px; }")
         self._build_menu_node(menu, lst, ident_map)
         if not menu.actions():
             menu.deleteLater()
@@ -350,6 +351,7 @@ class ListMenuExtension(Extension):
     def _build_popup_menu(self, parent, ident_map=None):
         """Build a fresh cursor popup menu (lists -> items + edit footer)."""
         menu = QMenu(parent)
+        menu.setStyleSheet("QMenu::separator { background-color: #808080; height: 1px; margin: 2px 6px; }")
         for lst in load_lists():
             if not lst.get("active", True):
                 continue

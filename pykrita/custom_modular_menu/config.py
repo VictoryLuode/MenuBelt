@@ -358,7 +358,7 @@ def run_brush(filename):
         return
     try:
         target = None
-        for p in Krita.instance().resources("preset"):
+        for p in Krita.instance().resources("preset").values():
             try:
                 if p.filename() == filename:
                     target = p

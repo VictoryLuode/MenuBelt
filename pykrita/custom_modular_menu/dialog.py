@@ -112,9 +112,8 @@ def _enum_brushes(dlg, needle):
         presets = Krita.instance().resources("preset")
     except Exception:
         return
-    for p in presets:
+    for name, p in presets.items():
         try:
-            name = p.name() or ""
             filename = p.filename() or ""
         except Exception:
             continue
@@ -133,10 +132,10 @@ def _add_brush(dlg, payload):
         return
     label = filename
     try:
-        for p in Krita.instance().resources("preset"):
+        for name, p in Krita.instance().resources("preset").items():
             try:
                 if p.filename() == filename:
-                    label = p.name() or filename
+                    label = name or filename
                     break
             except Exception:
                 continue
