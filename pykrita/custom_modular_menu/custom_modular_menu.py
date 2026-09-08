@@ -167,6 +167,9 @@ class ListMenuExtension(Extension):
         self._last_identity = load_last_identity()  # persisted last-triggered item
         self._pie = None            # active PieWidget (None when no pie is open)
         self._ignore_until = 0.0  # debounce: swallow re-triggers right after closing
+        # Brush icon + preset caches (build once, not per menu item)
+        self._brush_icons = {}      # preset name -> QIcon (or None)
+        self._presets = None        # cached resources("preset") dict
         # App-level key filter (global, sees every key press regardless of focus)
         self._app_filter = _KeyFilter(self)
         app = QApplication.instance()
@@ -491,10 +494,26 @@ class ListMenuExtension(Extension):
         if ident_map is not None:
             ident_map[act] = ("cmd", action_id)
 
+    def _get_presets(self):
+        """Cached dict of all Krita brush presets (name -> Resource).
+
+        Calling resources("preset") enumerates every preset; building a menu with
+        N brush items called it N times (O(N^2) -> seconds of lag). Cache it once.
+        """
+        if self._presets is None:
+            self._presets = Krita.instance().resources("preset")
+        return self._presets
+
     def _brush_icon(self, name):
-        """Return a QIcon built from a brush preset's thumbnail image (or None)."""
+        """Return a QIcon built from a brush preset's thumbnail image (or None).
+
+        Icons are cached per preset name so each brush only loads its image once.
+        """
+        if name in self._brush_icons:
+            return self._brush_icons[name]
+        icon = None
         try:
-            presets = Krita.instance().resources("preset")
+            presets = self._get_presets()
             resource = presets.get(name)
             if resource is None:
                 # fallback: legacy configs stored the preset filename
@@ -505,14 +524,17 @@ class ListMenuExtension(Extension):
                             break
                     except Exception:
                         continue
-            if resource is None:
-                return None
-            img = resource.image()
-            if not img.isNull():
-                return QIcon(QPixmap.fromImage(img))
+            if resource is not None:
+                img = resource.image()
+                if not img.isNull():
+                    # downscale once to a small pixmap; avoids a full-size copy
+                    icon = QIcon(QPixmap.fromImage(
+                        img.scaled(64, 64, Qt.KeepAspectRatio,
+                                   Qt.SmoothTransformation)))
         except Exception:
-            pass
-        return None
+            icon = None
+        self._brush_icons[name] = icon
+        return icon
 
     def _build_menu_node(self, parent_menu, node, ident_map=None, show_icons=True):
         """Recursively add a menu node's commands, scripts and submenus.

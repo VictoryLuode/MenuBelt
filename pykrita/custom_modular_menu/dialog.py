@@ -154,6 +154,8 @@ class ListMenuDialog(QDialog):
         self.current = 0
         self.path = [self.lists[self.current]] if self.lists else []
         self._loading_sc = False
+        self._brush_icons = {}      # preset name -> QIcon (or None)
+        self._presets = None        # cached resources("preset") dict
         self._sources = list(ADD_SOURCES)
         self._action_categories = load_action_categories()
         catalog_ids = set(self._catalog.keys())
@@ -603,9 +605,18 @@ class ListMenuDialog(QDialog):
             pass
         return None
 
+    def _get_presets(self):
+        """Cached dict of all Krita brush presets (name -> Resource)."""
+        if self._presets is None:
+            self._presets = Krita.instance().resources("preset")
+        return self._presets
+
     def _brush_pixmap_icon(self, name):
+        if name in self._brush_icons:
+            return self._brush_icons[name]
+        icon = None
         try:
-            presets = Krita.instance().resources("preset")
+            presets = self._get_presets()
             resource = presets.get(name)
             if resource is None:
                 for p in presets.values():
@@ -615,14 +626,16 @@ class ListMenuDialog(QDialog):
                             break
                     except Exception:
                         continue
-            if resource is None:
-                return None
-            img = resource.image()
-            if not img.isNull():
-                return QIcon(QPixmap.fromImage(img))
+            if resource is not None:
+                img = resource.image()
+                if not img.isNull():
+                    icon = QIcon(QPixmap.fromImage(
+                        img.scaled(64, 64, Qt.KeepAspectRatio,
+                                   Qt.SmoothTransformation)))
         except Exception:
-            pass
-        return None
+            icon = None
+        self._brush_icons[name] = icon
+        return icon
 
     def _render_current(self):
         self._update_current_title()
