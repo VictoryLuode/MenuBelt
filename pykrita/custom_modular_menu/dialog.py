@@ -39,7 +39,6 @@ from PyQt5.QtWidgets import (
 from .config import (
     BRUSH_BLEND_MODES,
     BRUSH_VALUES,
-    DEFAULT_PALETTE,
     LAYER_BLEND_MODES,
     build_config_dict,
     catalog_actions,
@@ -199,16 +198,6 @@ def _add_brush_value(dlg, payload):
     dlg._render_items()
 
 
-def _enum_colors(dlg, needle):
-    # pickers first, then the default palette (added as foreground)
-    yield ("__pick_fg__", "Pick Foreground color…")
-    yield ("__pick_bg__", "Pick Background color…")
-    for hexc, name in DEFAULT_PALETTE:
-        if needle and needle not in name.lower() and needle not in hexc.lower():
-            continue
-        yield ("fg:" + hexc, name)
-
-
 def _add_color(dlg, payload):
     if payload == "__pick_fg__":
         col = QColorDialog.getColor()
@@ -272,7 +261,6 @@ ADD_SOURCES = [
     AddSource("blend", "Layer Blend Mode", TYPE_BLEND, _enum_blend, _add_blend),
     AddSource("bblend", "Brush Blend Mode", TYPE_BBLEND, _enum_brush_blend, _add_brush_blend),
     AddSource("bval", "Brush Value", TYPE_BVAL, _enum_brush_values, _add_brush_value),
-    AddSource("color", "Color", TYPE_COLOR, _enum_colors, _add_color),
     AddSource("palette", "Krita Palettes", TYPE_COLOR, _enum_palettes, _add_color),
     AddSource("brush", "Brushes", TYPE_BRUSH, _enum_brushes, _add_brush),
 ]
@@ -298,7 +286,7 @@ class ListMenuDialog(QDialog):
         self._tags_loaded = False   # lazy: brush tag filter data
         self._brush_tags = []       # sorted tag names for brush presets
         self._preset_tags = {}      # preset name -> frozenset(tag names)
-        self._sources = list(ADD_SOURCES)
+        self._sources = sorted(ADD_SOURCES, key=lambda s: s.label.lower())
         self._action_categories = load_action_categories()
         catalog_ids = set(self._catalog.keys())
         self._categories = sorted({v for k, v in self._action_categories.items()
@@ -1039,10 +1027,6 @@ class ListMenuDialog(QDialog):
                 leaf.setData(0, ROLE_TYPE, src.item_type)
                 if src.key == "brush":
                     icon = self._brush_pixmap_icon(payload)
-                    if icon is not None:
-                        leaf.setIcon(0, icon)
-                elif src.key == "color" and (payload.startswith("fg:") or payload.startswith("bg:")):
-                    icon = self._color_swatch_icon(payload.split(":", 1)[-1])
                     if icon is not None:
                         leaf.setIcon(0, icon)
                 self.add_tree.addTopLevelItem(leaf)

@@ -105,14 +105,6 @@ BRUSH_VALUES = [
     ("size:128", "Size 128 px"),
 ]
 
-# Colour favourites offered as addable swatches (fg) in the editor.
-DEFAULT_PALETTE = [
-    ("#000000", "Black"), ("#ffffff", "White"), ("#808080", "Grey"),
-    ("#ff0000", "Red"), ("#ff7800", "Orange"), ("#ffe000", "Yellow"),
-    ("#00b050", "Green"), ("#00e0e0", "Cyan"), ("#2030ff", "Blue"),
-    ("#e000ff", "Magenta"), ("#8a4b08", "Brown"), ("#ffb0c8", "Pink"),
-]
-
 # Default lists on first run (action ids verified against Krita 5.3 krita.action)
 DEFAULT_LISTS = [
     {"name": "Canvas Assist", "shortcut": "", "items": [
