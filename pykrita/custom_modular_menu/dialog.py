@@ -9,7 +9,7 @@ import os
 import sqlite3
 
 from krita import Krita, Palette
-from PyQt5.QtCore import QRect, Qt
+from PyQt5.QtCore import QRect, QSize, Qt
 from PyQt5.QtGui import QBrush, QColor, QFont, QIcon, QKeySequence, QPixmap
 from PyQt5.QtWidgets import (
     QAbstractItemView,
