@@ -243,18 +243,7 @@ class ListMenuDialog(QDialog):
         pos_row.addStretch()
         st.addLayout(pos_row)
 
-        btn_row = QHBoxLayout()
-        for label, slot in (("Add Submenu", self._add_submenu),
-                            ("Add Script", self._add_script),
-                            ("Rename", self._rename_item),
-                            ("Remove", self._remove_selected)):
-            b = QPushButton(label)
-            b.clicked.connect(slot)
-            btn_row.addWidget(b)
-        cm.addLayout(btn_row)
-        cm.addWidget(settings_box)
-
-        # Per-list popup shortcut (moved below Menu Settings)
+        # Per-list popup shortcut (inside Menu Settings)
         sc_row = QHBoxLayout()
         sc_row.addWidget(QLabel("Shortcut:"))
         self.list_sc_edit = QKeySequenceEdit()
@@ -266,7 +255,18 @@ class ListMenuDialog(QDialog):
         sc_clear.clicked.connect(self._clear_list_shortcut)
         sc_row.addWidget(sc_clear)
         sc_row.addStretch()
-        cm.addLayout(sc_row)
+        st.addLayout(sc_row)
+
+        btn_row = QHBoxLayout()
+        for label, slot in (("Add Submenu", self._add_submenu),
+                            ("Add Script", self._add_script),
+                            ("Rename", self._rename_item),
+                            ("Remove", self._remove_selected)):
+            b = QPushButton(label)
+            b.clicked.connect(slot)
+            btn_row.addWidget(b)
+        cm.addLayout(btn_row)
+        cm.addWidget(settings_box)
         body.addWidget(current_box, 2)
 
         # Add items (pick a Krita action or a layer blend mode to add)
