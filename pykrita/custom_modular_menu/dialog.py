@@ -135,6 +135,7 @@ class ListMenuDialog(QDialog):
         self._build_ui()
         self._reload_sidebar()
         self._update_pos_combo()
+        self._update_form_combo()
         self._render_current()
         self._update_left_shortcut()
         self._render_preview()
@@ -243,6 +244,20 @@ class ListMenuDialog(QDialog):
         pos_row.addWidget(self.pos_combo)
         pos_row.addStretch()
         st.addLayout(pos_row)
+
+        # Menu form (list / pie)
+        form_row = QHBoxLayout()
+        form_row.addWidget(QLabel("Form:"))
+        self.form_combo = QComboBox()
+        self.form_combo.addItem("List", "list")
+        self.form_combo.addItem("Pie", "pie")
+        self.form_combo.setToolTip(
+            "List: linear cursor menu.\n"
+            "Pie: Blender-style radial menu (up to 8 items, submenus not shown).")
+        self.form_combo.currentIndexChanged.connect(self._on_form_changed)
+        form_row.addWidget(self.form_combo)
+        form_row.addStretch()
+        st.addLayout(form_row)
 
         # Per-list popup shortcut (inside Menu Settings)
         sc_row = QHBoxLayout()
@@ -406,6 +421,7 @@ class ListMenuDialog(QDialog):
             self.path = [self.lists[row]]
             self._update_left_shortcut()
             self._update_pos_combo()
+            self._update_form_combo()
             self._render_current()
 
     def _cur_top_list(self):
@@ -432,6 +448,26 @@ class ListMenuDialog(QDialog):
         idx = self.pos_combo.findData(lst.get("popup_position", "last"))
         self.pos_combo.setCurrentIndex(max(0, idx))
         self.pos_combo.blockSignals(False)
+
+    def _on_form_changed(self):
+        lst = self._cur_top_list()
+        if lst is None:
+            return
+        lst["form"] = self.form_combo.currentData()
+        save_config(self.popup_shortcut, self.lists)
+        notify_refresh()
+
+    def _update_form_combo(self):
+        lst = self._cur_top_list()
+        self.form_combo.blockSignals(True)
+        if lst is None:
+            self.form_combo.setEnabled(False)
+            self.form_combo.blockSignals(False)
+            return
+        self.form_combo.setEnabled(True)
+        idx = self.form_combo.findData(lst.get("form", "list"))
+        self.form_combo.setCurrentIndex(max(0, idx))
+        self.form_combo.blockSignals(False)
 
     def _sync_lists_order(self, *_):
         by_name = {lst["name"]: lst for lst in self.lists}

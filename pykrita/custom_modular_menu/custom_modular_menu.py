@@ -28,6 +28,7 @@ from PyQt5.QtWidgets import (
 )
 
 from .config import load_lists, notify_refresh, register_refresh, run_composite_op, run_script
+from .pie import PieWidget
 
 # Keys that on their own are modifiers, not real shortcuts
 _MODIFIER_KEYS = (
@@ -56,6 +57,12 @@ class _KeyFilter(QObject):
             mods = event.modifiers()
             seq = QKeySequence(int(mods) | key)
             self._ext.dispatch_shortcut(seq.toString(QKeySequence.PortableText))
+        elif event.type() == QEvent.KeyRelease:
+            key = event.key()
+            if key in _MODIFIER_KEYS:
+                return False
+            # A pie is shown while the trigger key is held; release activates it.
+            self._ext.pie_release()
         return False
 
 
@@ -68,6 +75,7 @@ class ListMenuExtension(Extension):
         self._popup_active = False
         self._popup_menu_ref = None
         self._last_identity = None  # identity of last-triggered item (reposition marker)
+        self._pie = None            # active PieWidget (None when no pie is open)
         self._ignore_until = 0.0  # debounce: swallow re-triggers right after closing
         # App-level key filter (global, sees every key press regardless of focus)
         self._app_filter = _KeyFilter(self)
@@ -139,10 +147,15 @@ class ListMenuExtension(Extension):
                 continue
             key = lst.get("shortcut", "")
             if key:
-                self._shortcut_map[key] = (lambda i=i: self.pop_list(i))
+                if lst.get("form", "list") == "pie":
+                    self._shortcut_map[key] = (lambda i=i: self.pop_pie(i))
+                else:
+                    self._shortcut_map[key] = (lambda i=i: self.pop_list(i))
 
     def dispatch_shortcut(self, seq_str):
         """Called by the event filter with the pressed key sequence (PortableText)."""
+        if self._pie is not None or self._popup_active:
+            return  # a pie or list popup is already open
         cb = self._shortcut_map.get(seq_str)
         if cb is not None:
             cb()
@@ -241,6 +254,69 @@ class ListMenuExtension(Extension):
             self._popup_menu_ref = None
             self._ignore_until = time.time() + 0.3
             menu.deleteLater()
+
+    # ---------- Pie (radial) form ----------
+    def _pie_slices(self, lst):
+        """Build [(label, icon|None, trigger_callable)] for a list's leaf items."""
+        slices = []
+        for entry in lst.get("items", []):
+            aid, label = None, ""
+            if isinstance(entry, str):
+                aid = entry
+            elif isinstance(entry, dict):
+                if entry.get("id"):
+                    aid, label = entry["id"], entry.get("label", "")
+                elif entry.get("script") is not None:
+                    code = entry.get("script", "")
+                    slices.append((entry.get("label", "Script"), None,
+                                   lambda c=code: run_script(c)))
+                    continue
+                elif entry.get("blend") is not None:
+                    oid = entry.get("blend", "")
+                    slices.append((entry.get("label", oid), None,
+                                   lambda o=oid: run_composite_op(o)))
+                    continue
+                elif entry.get("name") is not None:
+                    continue  # submenu: not representable in a single-level pie (v1)
+                else:
+                    continue
+            else:
+                continue
+            act = Krita.instance().action(aid)
+            if act is None:
+                continue
+            icon = act.icon()
+            slices.append((label or act.text().replace("&", "").strip(),
+                           icon if not icon.isNull() else None, act.trigger))
+        return slices
+
+    def pop_pie(self, index):
+        """Show a Blender-style radial menu for a pie-form list at the cursor."""
+        if self._pie is not None:
+            return
+        try:
+            lst = load_lists()[index]
+        except (IndexError, TypeError):
+            return
+        if not lst.get("active", True):
+            return
+        slices = self._pie_slices(lst)
+        if not slices:
+            return
+        pie = PieWidget(slices, self._active_window_widget())
+        self._pie = pie
+        pie.show_pie(QCursor.pos())
+
+    def pie_release(self):
+        """Activate the currently highlighted pie item and close the pie."""
+        pie = self._pie
+        if pie is None:
+            return
+        trig = pie.current_trigger()
+        self._pie = None
+        pie.close_pie()
+        if trig is not None:
+            trig()
 
     def _build_popup_menu(self, parent, ident_map=None):
         """Build a fresh cursor popup menu (lists -> items + edit footer)."""
