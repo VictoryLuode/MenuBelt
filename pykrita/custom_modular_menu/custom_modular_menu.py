@@ -162,7 +162,8 @@ class _SeparatorRow(QWidget):
         self.setFixedHeight(6)
 
     def sizeHint(self):
-        return QSize(0, 6)
+        # Non-zero width so the row lays out (width 0 produced an invisible line).
+        return QSize(150, 6)
 
     def paintEvent(self, e):
         p = QPainter(self)

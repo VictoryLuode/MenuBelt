@@ -388,7 +388,7 @@ class ListMenuDialog(QDialog):
 
         # Menu form (list / pie)
         form_row = QHBoxLayout()
-        form_row.addWidget(QLabel("Form:"))
+        form_row.addWidget(QLabel("Menu mode:"))
         self.form_combo = QComboBox()
         self.form_combo.addItem("List", "list")
         self.form_combo.addItem("Pie", "pie")
