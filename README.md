@@ -1,4 +1,4 @@
-# Custom Modular Menu (CMM) — Krita Plugin
+# Custom Modular Menu — Krita Plugin
 
 Build your own **multi-list action menus** in Krita and reach them from two places at
 once: a **cursor popup** and a **Tools → Custom Modular Menu** submenu. Each list is

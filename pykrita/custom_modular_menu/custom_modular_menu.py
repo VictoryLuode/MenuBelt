@@ -1,4 +1,4 @@
-"""Custom Modular Menu (CMM) - core: builds three synchronised multi-list entries
+"""Custom Modular Menu - core: builds three synchronised multi-list entries
 plus configurable shortcuts.
 
 Shortcuts are implemented with a keyboard EVENT FILTER (not QShortcut), because

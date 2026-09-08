@@ -1,4 +1,4 @@
-"""Custom Modular Menu (CMM) - multi-list editor dialog.
+"""Custom Modular Menu - multi-list editor dialog.
 
 Supports nested menus, custom-named commands. Provides
 a live Current Menu list, shortcut conflict detection, and config export/import.
@@ -1280,7 +1280,7 @@ class ListMenuDialog(QDialog):
 
     # ---------- Export / import ----------
     def _export_config(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Export Config", "", "CMM Config (*.json)")
+        path, _ = QFileDialog.getSaveFileName(self, "Export Config", "", "Custom Modular Menu Config (*.json)")
         if not path:
             return
         data = build_config_dict(self.popup_shortcut, self.lists)
@@ -1292,7 +1292,7 @@ class ListMenuDialog(QDialog):
             QMessageBox.warning(self, "Export failed", str(e))
 
     def _import_config(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Import Config", "", "CMM Config (*.json)")
+        path, _ = QFileDialog.getOpenFileName(self, "Import Config", "", "Custom Modular Menu Config (*.json)")
         if not path:
             return
         try:

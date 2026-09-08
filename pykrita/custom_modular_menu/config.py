@@ -1,4 +1,4 @@
-"""Custom Modular Menu (CMM) - config layer: multi-list JSON persistence,
+"""Custom Modular Menu - config layer: multi-list JSON persistence,
 full action catalog enumeration, per-item custom labels, per-list shortcuts,
 and refresh notification.
 
@@ -330,7 +330,7 @@ def save_config(popup_shortcut, lists):
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
     except OSError as e:
-        print(f"[CMM] failed to save config: {e}")
+        print(f"failed to save config: {e}")
 
 
 def load_last_identity():
@@ -358,7 +358,7 @@ def save_last_identity(identity):
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
     except OSError as e:
-        print(f"[CMM] failed to save last identity: {e}")
+        print(f"failed to save last identity: {e}")
 
 
 def save_lists(lists):
@@ -380,7 +380,7 @@ def catalog_actions():
             if oid:
                 out.append((oid, text or oid))
     except Exception as e:
-        print(f"[CMM] failed to enumerate actions: {e}")
+        print(f"failed to enumerate actions: {e}")
     out.sort(key=lambda x: x[1].lower())
     return out
 
@@ -458,7 +458,7 @@ def run_composite_op(op_id):
         try:
             node.setBlendingMode(op_id)
         except Exception as e:
-            print(f"[CMM] setBlendingMode error: {e}")
+            print(f"setBlendingMode error: {e}")
 
 
 def run_brush_blend(op_id):
@@ -533,7 +533,7 @@ def run_set_color(hex_str, target):
             except Exception:
                 continue
     except Exception as e:
-        print(f"[CMM] set color error: {e}")
+        print(f"set color error: {e}")
 
 
 def run_brush(name):
@@ -564,7 +564,7 @@ def run_brush(name):
             except Exception:
                 continue
     except Exception as e:
-        print(f"[CMM] run_brush error: {e}")
+        print(f"run_brush error: {e}")
 
 
 # ---------- Refresh notification (reload Tools menu / Docker / shortcuts after editing) ----------
@@ -582,4 +582,4 @@ def notify_refresh():
         try:
             cb()
         except Exception as e:
-            print(f"[CMM] refresh callback failed: {e}")
+            print(f"refresh callback failed: {e}")

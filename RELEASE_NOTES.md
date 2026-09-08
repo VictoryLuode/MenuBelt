@@ -4,7 +4,7 @@
 a Tools → Custom Modular Menu submenu. Each list opens as a linear menu or a
 Blender-style radial pie.**
 
-This is the first public release of **Custom Modular Menu (CMM)**.
+This is the first public release of **Custom Modular Menu**.
 
 ## Highlights
 
