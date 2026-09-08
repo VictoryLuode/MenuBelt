@@ -428,17 +428,25 @@ class ListMenuExtension(Extension):
         act.triggered.connect(native.trigger)
         return act
 
-    def _brush_icon(self, filename):
+    def _brush_icon(self, name):
         """Return a QIcon built from a brush preset's thumbnail image (or None)."""
         try:
-            for p in Krita.instance().resources("preset").values():
-                try:
-                    if p.filename() == filename:
-                        img = p.image()
-                        if not img.isNull():
-                            return QIcon(QPixmap.fromImage(img))
-                except Exception:
-                    continue
+            presets = Krita.instance().resources("preset")
+            resource = presets.get(name)
+            if resource is None:
+                # fallback: legacy configs stored the preset filename
+                for p in presets.values():
+                    try:
+                        if p.filename() == name:
+                            resource = p
+                            break
+                    except Exception:
+                        continue
+            if resource is None:
+                return None
+            img = resource.image()
+            if not img.isNull():
+                return QIcon(QPixmap.fromImage(img))
         except Exception:
             pass
         return None

@@ -389,24 +389,33 @@ def run_composite_op(op_id):
             print(f"[CMM] setBlendingMode error: {e}")
 
 
-def run_brush(filename):
-    """Set the active Krita brush preset from a preset filename (View API)."""
-    if not isinstance(filename, str) or not filename:
+def run_brush(name):
+    """Set the active Krita brush preset by its name (View.activateResource)."""
+    if not isinstance(name, str) or not name:
         return
     try:
-        target = None
-        for p in Krita.instance().resources("preset").values():
+        presets = Krita.instance().resources("preset")
+        resource = presets.get(name)
+        if resource is None:
+            # fallback: legacy configs stored the preset filename
+            for p in presets.values():
+                try:
+                    if p.filename() == name:
+                        resource = p
+                        break
+                except Exception:
+                    continue
+        if resource is None:
+            return
+        window = Krita.instance().activeWindow()
+        if window is None:
+            return
+        for view in window.views():
             try:
-                if p.filename() == filename:
-                    target = p
-                    break
+                view.activateResource(resource)
+                return
             except Exception:
                 continue
-        if target is None:
-            return
-        view = Krita.instance().activeWindow().activeView()
-        if view is not None:
-            view.setCurrentPreset(target)
     except Exception as e:
         print(f"[CMM] run_brush error: {e}")
 
