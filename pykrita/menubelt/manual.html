@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Custom Modular Menu</title>
+<title>MenuBelt</title>
 <style>
   body { font-family: sans-serif; line-height: 1.5; color: #eee; background: #2b2b2b; padding: 12px 18px; }
   h1 { font-size: 18px; margin-top: 0; }
@@ -12,7 +12,7 @@
 </style>
 </head>
 <body>
-<h1>Custom Modular Menu</h1>
+<h1>MenuBelt</h1>
 <p>Build your own <strong>multi-list action menus</strong> and reach them from three places at once:
 the cursor, the <strong>Tools</strong> menu, and a <strong>dockable panel</strong>.</p>
 
@@ -28,14 +28,14 @@ the cursor, the <strong>Tools</strong> menu, and a <strong>dockable panel</stron
   <li><strong>List or Pie form</strong> — each menu can open as a linear <em>List</em> or a <em>Blender-style Pie</em> (radial): hold the shortcut, drag toward a direction, release to activate. Pie supports up to 8 items (submenus are not shown in a pie).</li>
   <li><strong>Nested submenus</strong> — add a menu inside a menu (any depth), each holding its own commands and further submenus, for modular organisation.</li>
   <li><strong>Custom names</strong> — rename any item to whatever you like; the menu and Tools submenu show your name (with the native icon and behaviour).</li>
-  <li><strong>Two synced entries</strong>: a cursor popup menu, and <code>Tools &gt; Custom Modular Menu</code>.</li>
+  <li><strong>Two synced entries</strong>: a cursor popup menu, and <code>Tools &gt; MenuBelt</code>.</li>
   <li><strong>Configurable shortcuts</strong> — bind a hotkey for the whole menu or per list, right inside the editor (no need for Krita's Keyboard Shortcuts dialog).</li>
 </ul>
 
 <h2>Install / enable</h2>
 <ol>
   <li>Copy the <code>pykrita/</code> and <code>actions/</code> folders into your Krita resource directory, then restart Krita.</li>
-  <li>In <code>Settings &gt; Configure Krita &gt; Python Plugin Manager</code>, tick <strong>Custom Modular Menu</strong>, then restart.</li>
+  <li>In <code>Settings &gt; Configure Krita &gt; Python Plugin Manager</code>, tick <strong>MenuBelt</strong>, then restart.</li>
 </ol>
 
 <h2>Usage</h2>
@@ -46,7 +46,7 @@ the cursor, the <strong>Tools</strong> menu, and a <strong>dockable panel</stron
   <li><strong>Scripts:</strong> press <em>Add Script</em>, give it a name and paste Python code; clicking the item runs it.</li>
   <li><strong>Layer blend mode:</strong> in the <em>Add items</em> pane switch to <strong>Layer Blend Mode</strong> and add one — clicking it sets the <em>active layer</em> blend mode (via <code>Node.setBlendingMode</code>). This is the layer&rsquo;s blend mode, not the brush&rsquo;s.</li>
   <li><strong>Brushes:</strong> in the <em>Add items</em> pane switch to <strong>Brushes</strong> and add a brush preset — clicking it sets the active Krita brush (via the View API <code>setCurrentPreset</code>).</li>
-  <li><strong>Shortcuts:</strong> in the editor, click the <em>Shortcut</em> field and press a key combination (e.g. <code>Ctrl+Alt+1</code>) to pop that list at the cursor. The whole-menu popup is bound in <code>Settings &gt; Configure Krita &gt; Keyboard Shortcuts &gt; Custom Modular Menu &gt; Pop Up Custom List</code>.</li>
+  <li><strong>Shortcuts:</strong> in the editor, click the <em>Shortcut</em> field and press a key combination (e.g. <code>Ctrl+Alt+1</code>) to pop that list at the cursor. The whole-menu popup is bound in <code>Settings &gt; Configure Krita &gt; Keyboard Shortcuts &gt; MenuBelt &gt; Pop Up Custom List</code>.</li>
   <li><strong>Docker panel:</strong> removed in this version (not needed).</li>
 </ul>
 

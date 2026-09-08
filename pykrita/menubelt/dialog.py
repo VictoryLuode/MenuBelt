@@ -1,4 +1,4 @@
-"""Custom Modular Menu - multi-list editor dialog.
+"""MenuBelt - multi-list editor dialog.
 
 Supports nested menus, custom-named commands. Provides
 a live Current Menu list, shortcut conflict detection, and config export/import.
@@ -325,7 +325,7 @@ class ListMenuDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Edit Custom Modular Menu")
+        self.setWindowTitle("Edit MenuBelt")
         self.setMinimumSize(920, 560)
         self._apply_default_size()
 
@@ -360,8 +360,8 @@ class ListMenuDialog(QDialog):
     # ---------- Size (remembered) ----------
     def _apply_default_size(self):
         try:
-            w = Krita.instance().readSetting("custom_modular_menu", "dialog_width", "")
-            h = Krita.instance().readSetting("custom_modular_menu", "dialog_height", "")
+            w = Krita.instance().readSetting("menubelt", "dialog_width", "")
+            h = Krita.instance().readSetting("menubelt", "dialog_height", "")
             if w and h:
                 self.resize(int(w), int(h))
                 return
@@ -376,8 +376,8 @@ class ListMenuDialog(QDialog):
     def _persist_size(self):
         try:
             app = Krita.instance()
-            app.writeSetting("custom_modular_menu", "dialog_width", str(self.width()))
-            app.writeSetting("custom_modular_menu", "dialog_height", str(self.height()))
+            app.writeSetting("menubelt", "dialog_width", str(self.width()))
+            app.writeSetting("menubelt", "dialog_height", str(self.height()))
         except Exception:
             pass
 
@@ -1280,7 +1280,7 @@ class ListMenuDialog(QDialog):
 
     # ---------- Export / import ----------
     def _export_config(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Export Config", "", "Custom Modular Menu Config (*.json)")
+        path, _ = QFileDialog.getSaveFileName(self, "Export Config", "", "MenuBelt Config (*.json)")
         if not path:
             return
         data = build_config_dict(self.popup_shortcut, self.lists)
@@ -1292,7 +1292,7 @@ class ListMenuDialog(QDialog):
             QMessageBox.warning(self, "Export failed", str(e))
 
     def _import_config(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Import Config", "", "Custom Modular Menu Config (*.json)")
+        path, _ = QFileDialog.getOpenFileName(self, "Import Config", "", "MenuBelt Config (*.json)")
         if not path:
             return
         try:

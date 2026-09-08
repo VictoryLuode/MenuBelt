@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ActionCollection version="2" name="Scripts">
     <Actions category="Scripts">
-        <text>Custom Modular Menu</text>
+        <text>MenuBelt</text>
 
-        <Action name="custom_modular_menu_popup">
+        <Action name="menubelt_popup">
         <icon></icon>
         <text>Pop Up Custom List</text>
         <whatsThis></whatsThis>
@@ -16,9 +16,9 @@
         <statusTip></statusTip>
         </Action>
 
-        <Action name="custom_modular_menu_edit">
+        <Action name="menubelt_edit">
         <icon></icon>
-        <text>Configure Custom Modular Menu</text>
+        <text>Configure MenuBelt</text>
         <whatsThis></whatsThis>
         <toolTip>Configure the lists and their actions</toolTip>
         <iconText></iconText>

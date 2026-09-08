@@ -1,4 +1,4 @@
-"""Custom Modular Menu - core: builds three synchronised multi-list entries
+"""MenuBelt - core: builds three synchronised multi-list entries
 plus configurable shortcuts.
 
 Shortcuts are implemented with a keyboard EVENT FILTER (not QShortcut), because
@@ -6,7 +6,7 @@ Krita's canvas/shortcut handling consumes key events before Qt's QShortcut syste
 sees them. The event-filter approach is the proven Krita pattern (used by the
 shortcut_composer plugin).
 
-- Tools > Custom Modular Menu submenu (lists -> items)
+- Tools > MenuBelt submenu (lists -> items)
 - Cursor popup menu (reuses the same QMenu; bound to a shortcut)
 - A dynamic shortcut per list (each list can pop on its own hotkey)
 - Edit dialog (saving changes refreshes every entry + shortcuts automatically)
@@ -204,7 +204,7 @@ class _KeyFilter(QObject):
         return False
 
 
-class ListMenuExtension(Extension):
+class MenuBeltExtension(Extension):
     def __init__(self, parent):
         super().__init__(parent)
         # One entry per window: {window, root_action, menu}
@@ -231,17 +231,17 @@ class ListMenuExtension(Extension):
     def createActions(self, window):
         # Trigger action (whole-menu popup; also usable via Krita shortcuts editor)
         popup_action = window.createAction(
-            "custom_modular_menu_popup", "Pop Up Custom List", "")
+            "menubelt_popup", "Pop Up Custom List", "")
         popup_action.triggered.connect(self.pop_menu)
 
         # Editor action (shown as a footer item of the Tools submenu)
         edit_action = window.createAction(
-            "custom_modular_menu_edit", "Configure Custom Modular Menu", "")
+            "menubelt_edit", "Configure MenuBelt", "")
         edit_action.triggered.connect(self.open_editor)
 
-        # Tools > Custom Modular Menu root
+        # Tools > MenuBelt root
         root_action = window.createAction(
-            "custom_modular_menu", "Custom Modular Menu", "tools")
+            "menubelt", "MenuBelt", "tools")
         menu = QMenu(window.qwindow())
         root_action.setMenu(menu)
 
@@ -261,7 +261,7 @@ class ListMenuExtension(Extension):
         self._register_shortcuts()
 
     def _rebuild(self, window):
-        """Rebuild the Tools>Custom Modular Menu submenu from current config."""
+        """Rebuild the Tools>MenuBelt submenu from current config."""
         for entry in self._windows:
             if entry["window"] is not window:
                 continue
@@ -280,7 +280,7 @@ class ListMenuExtension(Extension):
     def _register_shortcuts(self):
         # Rebuild the shortcut lookup map from current config.
         # Whole-menu popup trigger is bound via Krita's own Keyboard Shortcuts
-        # editor (the custom_modular_menu_popup action), so only per-list keys
+        # editor (the menubelt_popup action), so only per-list keys
         # are registered here. The app-level event filter stays installed.
         self._shortcut_map = {}
         for lst in load_lists():
@@ -523,7 +523,7 @@ class ListMenuExtension(Extension):
         sep_act = QWidgetAction(menu)
         sep_act.setDefaultWidget(_SeparatorRow())
         menu.addAction(sep_act)
-        edit_act = menu.addAction("Configure Custom Modular Menu…")
+        edit_act = menu.addAction("Configure MenuBelt…")
         edit_act.triggered.connect(self.open_editor)
         self._force_close_on_trigger(menu)
         return menu
@@ -766,4 +766,4 @@ class ListMenuExtension(Extension):
 
 
 # -- Registration (runs when pykrita loads the package) --
-Krita.instance().addExtension(ListMenuExtension(Krita.instance()))
+Krita.instance().addExtension(MenuBeltExtension(Krita.instance()))

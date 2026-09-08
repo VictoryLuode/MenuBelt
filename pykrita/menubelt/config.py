@@ -1,4 +1,4 @@
-"""Custom Modular Menu - config layer: multi-list JSON persistence,
+"""MenuBelt - config layer: multi-list JSON persistence,
 full action catalog enumeration, per-item custom labels, per-list shortcuts,
 and refresh notification.
 

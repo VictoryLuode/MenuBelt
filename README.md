@@ -1,7 +1,7 @@
-# Custom Modular Menu — Krita Plugin
+# MenuBelt — Krita Plugin
 
 Build your own **multi-list action menus** in Krita and reach them from two places at
-once: a **cursor popup** and a **Tools → Custom Modular Menu** submenu. Each list is
+once: a **cursor popup** and a **Tools → MenuBelt** submenu. Each list is
 fully yours to assemble — native Krita actions, layer/blend modes, brushes, brush
 values, colour swatches, submenus, headers, separators and checkable toggles — and
 every list can open as a **linear List** or a **Blender-style radial Pie**.
@@ -39,7 +39,7 @@ as you edit. Both entry points share the same configuration.
 
 > **Requires Krita 5.x (developed against 5.3).**
 
-1. Download the latest `custom_modular_menu.zip` from the
+1. Download the latest `menubelt.zip` from the
    [Releases page](../../releases).
 2. Unzip it and copy the `pykrita/` and `actions/` folders into your Krita resource
    directory (on Windows usually
@@ -48,11 +48,11 @@ as you edit. Both entry points share the same configuration.
    files for you.
 3. Restart Krita.
 4. Enable the plugin: **Settings → Configure Krita → Python Plugin Manager →**
-   tick **Custom Modular Menu**, then restart again.
+   tick **MenuBelt**, then restart again.
 
 ## Quick start
 
-1. Open the editor: **Tools → Custom Modular Menu → Configure Custom Modular Menu**.
+1. Open the editor: **Tools → MenuBelt → Configure MenuBelt**.
 2. In the **Menu List**, pick a list (e.g. *Canvas Assist*), or add a new one.
 3. In the **Add items** pane choose a source:
    - **Krita Actions** — grouped by Krita's own shortcut-editor categories.
@@ -72,25 +72,25 @@ as you edit. Both entry points share the same configuration.
 - **Per list:** in the editor, click a list's *Shortcut* field and press a key
   combination (e.g. `Ctrl+Alt+1`) to pop that list at the cursor.
 - **Whole menu:** bind it in **Settings → Configure Krita → Keyboard Shortcuts →
-  Custom Modular Menu → Pop Up Custom List**.
+  MenuBelt → Pop Up Custom List**.
 
 > **Tip:** prefer modifier+key combos (`Ctrl/Alt/Shift` + a key) and avoid shortcuts
 > already used by a Krita action, or they won't fire.
 
 ## Repository layout
 ```
-custom_modular_menu/
+menubelt/
 ├── pykrita/
-│   ├── custom_modular_menu.desktop      # plugin manifest
-│   └── custom_modular_menu/             # plugin source
+│   ├── menubelt.desktop      # plugin manifest
+│   └── menubelt/             # plugin source
 │       ├── __init__.py
-│       ├── custom_modular_menu.py       # Extension: Tools menu + cursor popup + trigger
+│       ├── menubelt.py       # Extension: Tools menu + cursor popup + trigger
 │       ├── config.py                    # config persistence + item types + runner
 │       ├── dialog.py                    # multi-menu editor with live preview
 │       ├── pie.py                        # Blender-style radial pie widget
 │       └── manual.html                  # in-app manual
 ├── actions/
-│   └── custom_modular_menu.action       # exposes the trigger to Keyboard Shortcuts
+│   └── menubelt.action       # exposes the trigger to Keyboard Shortcuts
 └── deploy.bat                           # Windows: copy files to the resource dir
 ```
 

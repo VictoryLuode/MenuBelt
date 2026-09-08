@@ -1,4 +1,4 @@
-"""Self-contained Blender-style pie (radial) menu widget for Custom Modular Menu.
+"""Self-contained Blender-style pie (radial) menu widget for MenuBelt.
 
 A frameless, stay-on-top disc that appears under the cursor. While the trigger
 shortcut is held, the mouse direction picks one of the items around the disc;

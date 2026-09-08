@@ -1,10 +1,10 @@
-# Custom Modular Menu v1.0.0
+# MenuBelt v1.0.0
 
 **Build your own multi-list action menus in Krita, reachable from a cursor popup and
-a Tools → Custom Modular Menu submenu. Each list opens as a linear menu or a
+a Tools → MenuBelt submenu. Each list opens as a linear menu or a
 Blender-style radial pie.**
 
-This is the first public release of **Custom Modular Menu**.
+This is the first public release of **MenuBelt**.
 
 ## Highlights
 
@@ -22,14 +22,14 @@ This is the first public release of **Custom Modular Menu**.
 
 > Requires **Krita 5.x** (developed against 5.3).
 
-1. Download this `custom_modular_menu_v1.0.0.zip`.
+1. Download this `menubelt_v1.0.0.zip`.
 2. Unzip it and copy the `pykrita/` and `actions/` folders into your Krita resource
    directory (Windows: `%APPDATA%/krita/`; Linux: `~/.config/krita/`).
 3. Restart Krita.
-4. **Settings → Configure Krita → Python Plugin Manager →** tick **Custom Modular Menu**,
+4. **Settings → Configure Krita → Python Plugin Manager →** tick **MenuBelt**,
    then restart again.
 
-Then open the editor from **Tools → Custom Modular Menu → Configure Custom Modular Menu**.
+Then open the editor from **Tools → MenuBelt → Configure MenuBelt**.
 
 ## License
 
