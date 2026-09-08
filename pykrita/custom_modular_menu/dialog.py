@@ -1,7 +1,7 @@
 """Custom Modular Menu (CMM) - multi-list editor dialog.
 
 Supports nested menus, custom-named commands, and Python script items. Provides
-a live preview pane, shortcut conflict detection, and config export/import.
+a live Current Menu list, shortcut conflict detection, and config export/import.
 """
 
 import json
@@ -140,7 +140,7 @@ ADD_SOURCES = [
 
 
 class ListMenuDialog(QDialog):
-    """Multi-menu editor with nested submenu navigation + live preview."""
+    """Multi-menu editor with nested submenu navigation + a live Current Menu list."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -168,7 +168,6 @@ class ListMenuDialog(QDialog):
         self._update_show_icons_check()
         self._render_current()
         self._update_left_shortcut()
-        self._render_preview()
 
     # ---------- Size (remembered) ----------
     def _apply_default_size(self):
@@ -339,15 +338,6 @@ class ListMenuDialog(QDialog):
         self.add_tree.itemSelectionChanged.connect(self._on_avail_selection_changed)
         body.addWidget(avail_box, 2)
 
-        # Preview (right): only the current menu
-        preview_box = QGroupBox("Preview")
-        pv = QVBoxLayout(preview_box)
-        self.preview_tree = QTreeWidget()
-        self.preview_tree.setHeaderHidden(True)
-        self.preview_tree.setMinimumWidth(180)
-        pv.addWidget(self.preview_tree)
-        body.addWidget(preview_box, 1)
-
         root.addLayout(body)
 
         # Bottom: export/import + OK/Cancel
@@ -503,7 +493,6 @@ class ListMenuDialog(QDialog):
             self.lists[:] = new_order
         self.current = max(0, self.sidebar.currentRow())
         self._update_left_shortcut()
-        self._render_preview()
 
     def _new_list(self):
         name, ok = QInputDialog.getText(self, "Add", "List name:")
@@ -515,7 +504,6 @@ class ListMenuDialog(QDialog):
         self._reload_sidebar()
         self._render_current()
         self._update_left_shortcut()
-        self._render_preview()
 
     def _rename_list(self):
         if not self.lists:
@@ -526,7 +514,6 @@ class ListMenuDialog(QDialog):
             self.lists[self.current]["name"] = new_name.strip()
             self._reload_sidebar()
             self._render_path_bar()
-            self._render_preview()
 
     def _delete_list(self):
         if not self.lists:
@@ -540,7 +527,6 @@ class ListMenuDialog(QDialog):
             self._reload_sidebar()
             self._render_current()
             self._update_left_shortcut()
-            self._render_preview()
 
     # ---------- Shortcut ----------
     def _on_list_shortcut_changed(self, seq):
@@ -674,7 +660,6 @@ class ListMenuDialog(QDialog):
             entry.setFont(font)
             self.items_list.addItem(entry)
         self._reload_available()
-        self._render_preview()
 
     def _existing_cmd_ids(self):
         out = set()
@@ -780,7 +765,6 @@ class ListMenuDialog(QDialog):
                 new_order.append(by_tok[t])
         if len(new_order) == len(items):
             items[:] = new_order
-        self._render_preview()
 
     def _on_item_double_click(self, *_):
         entry = self.items_list.currentItem()
@@ -896,47 +880,6 @@ class ListMenuDialog(QDialog):
                 cur["label"] = new_label.strip()
             self._render_items()
 
-    # ---------- Live preview ----------
-    def _render_preview(self):
-        """Preview only the currently selected menu (with its nested submenus)."""
-        self.preview_tree.clear()
-        node = self._cur_menu()
-        if node.get("name"):
-            top = QTreeWidgetItem([node["name"]])
-            self.preview_tree.addTopLevelItem(top)
-            self._preview_fill(top, node)
-        self.preview_tree.expandAll()
-
-    def _preview_fill(self, parent_item, node):
-        for entry in node.get("items", []):
-            if isinstance(entry, str):
-                parent_item.addChild(QTreeWidgetItem([self._catalog.get(entry, entry)]))
-            elif isinstance(entry, dict):
-                if entry.get("id"):
-                    text = entry.get("label", "") or self._catalog.get(entry["id"], entry["id"])
-                    child = QTreeWidgetItem([text])
-                    icon = self._item_icon(entry)
-                    if icon is not None:
-                        child.setIcon(0, icon)
-                    parent_item.addChild(child)
-                elif entry.get("script") is not None:
-                    parent_item.addChild(QTreeWidgetItem(
-                        ["⚙ " + (entry.get("label", "Script") or "Script")]))
-                elif entry.get("blend") is not None:
-                    parent_item.addChild(QTreeWidgetItem(
-                        ["◆ " + (entry.get("label", entry["blend"]) or entry["blend"])]))
-                elif entry.get("brush") is not None:
-                    child = QTreeWidgetItem(
-                        ["🖌 " + (entry.get("label", entry["brush"]) or entry["brush"])])
-                    icon = self._item_icon(entry)
-                    if icon is not None:
-                        child.setIcon(0, icon)
-                    parent_item.addChild(child)
-                elif entry.get("name") is not None:
-                    child = QTreeWidgetItem([entry["name"]])
-                    parent_item.addChild(child)
-                    self._preview_fill(child, entry)
-
     # ---------- Export / import ----------
     def _export_config(self):
         path, _ = QFileDialog.getSaveFileName(self, "Export Config", "", "CMM Config (*.json)")
@@ -966,7 +909,6 @@ class ListMenuDialog(QDialog):
         self._reload_sidebar()
         self._render_current()
         self._update_left_shortcut()
-        self._render_preview()
 
     # ---------- Conflict check ----------
     def _check_conflicts(self):
