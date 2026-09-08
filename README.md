@@ -5,7 +5,9 @@ or the **Tools → MenuBelt** submenu — as a **linear List** or a **Blender-st
 
 ## Demo
 
-[![MenuBelt demo](https://img.youtube.com/vi/hjSDBv3bs3Q/maxresdefault.jpg)](https://youtu.be/hjSDBv3bs3Q)
+<video src="https://raw.githubusercontent.com/VictoryLuode/MenuBelt/main/assets/menubelt-demo.mp4" poster="https://raw.githubusercontent.com/VictoryLuode/MenuBelt/main/assets/menubelt-poster.png" controls></video>
+
+Or watch on [YouTube](https://youtu.be/hjSDBv3bs3Q).
 
 ## Highlights
 
