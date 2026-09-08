@@ -45,6 +45,13 @@ class _KeyFilter(QObject):
         self._ext = extension
 
     def eventFilter(self, obj, event):
+        if event.type() == QEvent.MouseButtonPress:
+            # Remember the global click position so a later popup opens there.
+            try:
+                self._ext._last_click_pos = event.globalPos()
+            except Exception:
+                pass
+            return False
         if event.type() == QEvent.KeyPress:
             key = event.key()
             if key in _MODIFIER_KEYS:
@@ -67,6 +74,7 @@ class ListMenuExtension(Extension):
         self._shortcut_map = {}   # shortcut string -> callable
         self._popup_active = False
         self._popup_menu_ref = None
+        self._last_click_pos = None   # last global mouse-press position (popup origin)
         self._ignore_until = 0.0  # debounce: swallow re-triggers right after closing
         # App-level key filter (global, sees every key press regardless of focus)
         self._app_filter = _KeyFilter(self)
@@ -159,6 +167,13 @@ class ListMenuExtension(Extension):
                 return entry["menu"]
         return self._windows[0]["menu"] if self._windows else None
 
+    def _popup_pos(self):
+        """Open the popup at the LAST mouse-press position (fallback: cursor)."""
+        pos = getattr(self, "_last_click_pos", None)
+        if pos is not None:
+            return pos
+        return QCursor.pos()
+
     def pop_menu(self, *_):
         """Open the whole multi-list menu under the cursor of the active window."""
         if self._popup_active or time.time() < self._ignore_until:
@@ -166,7 +181,7 @@ class ListMenuExtension(Extension):
         menu = self._build_popup_menu(self._active_window_widget())
         self._popup_active = True
         try:
-            menu.exec_(QCursor.pos())
+            menu.exec_(self._popup_pos())
         finally:
             self._popup_active = False
             self._popup_menu_ref = None
@@ -192,7 +207,7 @@ class ListMenuExtension(Extension):
         self._force_close_on_trigger(menu)
         self._popup_active = True
         try:
-            menu.exec_(QCursor.pos())
+            menu.exec_(self._popup_pos())
         finally:
             self._popup_active = False
             self._popup_menu_ref = None
