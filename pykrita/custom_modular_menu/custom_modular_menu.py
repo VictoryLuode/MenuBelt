@@ -38,6 +38,34 @@ _MODIFIER_KEYS = (
 )
 _TEXT_INPUTS = (QLineEdit, QTextEdit, QPlainTextEdit, QKeySequenceEdit)
 
+# Blender-style dark menu palette (mimics the Add menu: dark bg, grey/white
+# text, grey hover, thin separators, grey disabled header).
+_MENU_QSS = """
+QMenu {
+    background-color: #212121;
+    border: 1px solid #2c2c2c;
+    color: #e8e8e8;
+    padding: 4px;
+}
+QMenu::item {
+    background: transparent;
+    color: #e8e8e8;
+    padding: 5px 18px 5px 10px;
+}
+QMenu::item:selected {
+    background-color: #3d3d3d;
+    color: #ffffff;
+}
+QMenu::item:disabled {
+    color: #9a9a9a;
+}
+QMenu::separator {
+    background-color: #3a3a3a;
+    height: 1px;
+    margin: 4px 8px;
+}
+"""
+
 
 class _KeyFilter(QObject):
     """Installed on the Krita main window; dispatches configured shortcuts."""
@@ -247,7 +275,7 @@ class ListMenuExtension(Extension):
         parent = self._active_window_widget()
         ident_map = {}
         menu = QMenu(parent)
-        menu.setStyleSheet("QMenu::separator { background-color: #808080; height: 1px; margin: 2px 6px; }")
+        menu.setStyleSheet(_MENU_QSS)
         self._build_menu_node(menu, lst, ident_map)
         if not menu.actions():
             menu.deleteLater()
@@ -351,7 +379,7 @@ class ListMenuExtension(Extension):
     def _build_popup_menu(self, parent, ident_map=None):
         """Build a fresh cursor popup menu (lists -> items + edit footer)."""
         menu = QMenu(parent)
-        menu.setStyleSheet("QMenu::separator { background-color: #808080; height: 1px; margin: 2px 6px; }")
+        menu.setStyleSheet(_MENU_QSS)
         for lst in load_lists():
             if not lst.get("active", True):
                 continue

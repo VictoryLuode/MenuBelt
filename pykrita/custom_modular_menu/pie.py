@@ -103,8 +103,8 @@ class PieWidget(QWidget):
         cx, cy = self._size / 2, self._size / 2
 
         # Outer disc
-        p.setBrush(QColor(38, 38, 38, 190))
-        p.setPen(QPen(QColor(110, 110, 120, 210), 2))
+        p.setBrush(QColor(33, 33, 33, 200))
+        p.setPen(QPen(QColor(80, 80, 84, 210), 2))
         p.drawEllipse(QPointF(cx, cy), self.RADIUS + self.ITEM_R + 10,
                       self.RADIUS + self.ITEM_R + 10)
 
@@ -118,8 +118,8 @@ class PieWidget(QWidget):
             x, y = cx + math.cos(-math.pi / 2 + k * (2 * math.pi / self._n)) * self.RADIUS, \
                    cy + math.sin(-math.pi / 2 + k * (2 * math.pi / self._n)) * self.RADIUS
             active = (k == self._sel)
-            p.setBrush(QColor(0, 130, 220, 240) if active else QColor(60, 60, 64, 225))
-            p.setPen(QPen(QColor(255, 255, 255, 210) if active else QColor(150, 150, 150, 160), 2))
+            p.setBrush(QColor(74, 74, 78, 240) if active else QColor(44, 44, 47, 225))
+            p.setPen(QPen(QColor(255, 255, 255, 230) if active else QColor(150, 150, 150, 160), 2))
             p.drawEllipse(QPointF(x, y), self.ITEM_R, self.ITEM_R)
             if icon is not None and not icon.isNull():
                 icon.paint(p, QRect(int(x - 16), int(y - 16), 32, 32))
