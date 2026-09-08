@@ -32,7 +32,8 @@ from PyQt5.QtWidgets import (
 
 from .config import (load_last_identity, load_lists, notify_refresh,
                      register_refresh, save_last_identity, run_brush,
-                     run_brush_blend, run_composite_op, run_script)
+                     run_brush_blend, run_brush_value, run_composite_op,
+                     run_script, run_set_color)
 from .pie import PieWidget
 
 # Keys that on their own are modifiers, not real shortcuts
@@ -60,6 +61,16 @@ def _apply_dark_theme(menu):
     menu.setPalette(pal)
 
 
+def _trigger_action(aid):
+    """Trigger a Krita action by id (used by pie toggle slices)."""
+    try:
+        act = Krita.instance().action(aid)
+        if act is not None:
+            act.trigger()
+    except Exception:
+        pass
+
+
 class _MenuRow(QWidget):
     """Self-painted menu row (icon + text + optional shortcut).
 
@@ -70,18 +81,21 @@ class _MenuRow(QWidget):
     guarantees the icon renders. Hover highlight is painted from the palette.
     """
 
-    def __init__(self, text, parent=None, icon=None, shortcut=""):
+    def __init__(self, text, parent=None, icon=None, shortcut="",
+                 checkable=False, checked=False):
         super().__init__(parent)
         self._text = text
         self._icon = icon
         self._shortcut = shortcut
+        self._checkable = checkable
+        self._checked = checked
         self._hover = False
         self.setMouseTracking(True)
 
     def sizeHint(self):
         fm = self.fontMetrics()
         # 40 = left pad 10 + icon column 20 + gap 10, ALWAYS reserved so no-icon
-        # rows align their text with icon rows.
+        # rows align their text with icon rows. Checkable rows draw inside it.
         w = 40 + fm.horizontalAdvance(self._text) + 12   # + right pad
         if self._shortcut:
             w += fm.horizontalAdvance(self._shortcut) + 28
@@ -112,7 +126,19 @@ class _MenuRow(QWidget):
         x_icon = 10           # icon column left edge
         x_text = 40           # text always starts here (icon column reserved)
         y = (self.height() - fm.height()) // 2
-        if self._icon is not None and not self._icon.isNull():
+        if self._checkable:
+            # draw a check box at far-left (inside the reserved icon column)
+            box = 16
+            bx = 8
+            by = (self.height() - box) // 2
+            p.setPen(QColor(120, 120, 120))
+            p.setBrush(Qt.NoBrush)
+            p.drawRect(bx, by, box, box)
+            if self._checked:
+                p.setPen(QColor(230, 230, 230))
+                p.drawLine(bx + 3, by + box // 2, bx + box // 2, by + box - 3)
+                p.drawLine(bx + box // 2, by + box - 3, bx + box - 3, by + 3)
+        elif self._icon is not None and not self._icon.isNull():
             size = 20
             p.drawPixmap(x_icon, (self.height() - size) // 2,
                          self._icon.pixmap(QSize(size, size)))
@@ -392,6 +418,29 @@ class ListMenuExtension(Extension):
                     slices.append((entry.get("label", oid), None,
                                    lambda o=oid: run_brush_blend(o)))
                     continue
+                elif entry.get("bval") is not None:
+                    spec = entry.get("bval", "")
+                    slices.append((entry.get("label", spec), None,
+                                   lambda s=spec: run_brush_value(s)))
+                    continue
+                elif entry.get("color") is not None:
+                    hexc = entry.get("color", "#000000")
+                    target = entry.get("target", "fg")
+                    slices.append((entry.get("label", hexc),
+                                   self._color_icon(hexc),
+                                   lambda h=hexc, t=target: run_set_color(h, t)))
+                    continue
+                elif entry.get("toggle") is not None:
+                    aid = entry.get("toggle", "")
+                    checked = False
+                    try:
+                        nat = Krita.instance().action(aid)
+                        checked = bool(nat.isChecked()) if nat else False
+                    except Exception:
+                        checked = False
+                    slices.append((entry.get("label", aid), None,
+                                   lambda a=aid: _trigger_action(a)))
+                    continue
                 elif entry.get("brush") is not None:
                     bfile = entry.get("brush", "")
                     slices.append((entry.get("label", bfile), self._brush_icon(bfile),
@@ -458,12 +507,14 @@ class ListMenuExtension(Extension):
         self._force_close_on_trigger(menu)
         return menu
 
-    def _add_row(self, menu, text, icon, callback, shortcut="", enabled=True):
+    def _add_row(self, menu, text, icon, callback, shortcut="", enabled=True,
+                 checkable=False, checked=False):
         """Add a QWidgetAction row that paints its own icon+text, so icons render
         even under Krita's global stylesheet (which makes QMenu drop action icons).
         Returns the QWidgetAction."""
         act = QWidgetAction(menu)
-        row = _MenuRow(text, icon=icon, shortcut=shortcut)
+        row = _MenuRow(text, icon=icon, shortcut=shortcut,
+                       checkable=checkable, checked=checked)
         row.setPalette(menu.palette())
         row.setEnabled(enabled)
         act.setDefaultWidget(row)
@@ -498,6 +549,48 @@ class ListMenuExtension(Extension):
                             enabled=native.isEnabled())
         if ident_map is not None:
             ident_map[act] = ("cmd", action_id)
+
+    @staticmethod
+    def _color_icon(hexc):
+        """A small solid-colour swatch QIcon for a #rrggbb colour item."""
+        try:
+            pix = QPixmap(20, 20)
+            pix.fill(QColor(hexc))
+            return QIcon(pix)
+        except Exception:
+            return None
+
+    def _add_toggle(self, menu, entry, ident_map):
+        """Add a checkable toggle row backed by a Krita action (isChecked/trigger)."""
+        aid = entry.get("toggle", "")
+        native = None
+        try:
+            native = Krita.instance().action(aid)
+        except RuntimeError:
+            native = None
+        checked = False
+        enabled = True
+        if native is not None:
+            try:
+                checked = bool(native.isChecked())
+            except Exception:
+                checked = False
+            try:
+                enabled = native.isEnabled()
+            except Exception:
+                enabled = True
+        label = entry.get("label", aid) or aid
+        row = _MenuRow(label, icon=None, checkable=True, checked=checked)
+        row.setPalette(menu.palette())
+        row.setEnabled(enabled)
+        act = QWidgetAction(menu)
+        act.setDefaultWidget(row)
+        act.setEnabled(enabled)
+        if native is not None:
+            act.triggered.connect(lambda _=False, n=native: n.trigger())
+        menu.addAction(act)
+        if ident_map is not None:
+            ident_map[act] = ("toggle", aid)
 
     def _get_presets(self):
         """Cached dict of all Krita brush presets (name -> Resource).
@@ -574,6 +667,28 @@ class ListMenuExtension(Extension):
                                     lambda o=entry.get("bblend", ""): run_brush_blend(o))
                 if ident_map is not None:
                     ident_map[act] = ("bblend", entry.get("bblend", ""))
+            elif entry.get("bval") is not None:
+                label = entry.get("label", entry["bval"])
+                act = self._add_row(parent_menu, label, None,
+                                    lambda s=entry.get("bval", ""): run_brush_value(s))
+                if ident_map is not None:
+                    ident_map[act] = ("bval", entry.get("bval", ""))
+            elif entry.get("color") is not None:
+                hexc = entry.get("color", "#000000")
+                target = entry.get("target", "fg")
+                row_icon = self._color_icon(hexc)
+                act = self._add_row(parent_menu,
+                                    entry.get("label", hexc), row_icon,
+                                    lambda h=hexc, t=target: run_set_color(h, t))
+                if ident_map is not None:
+                    ident_map[act] = ("color", hexc + ":" + target)
+            elif entry.get("sep"):
+                parent_menu.addSeparator()
+            elif entry.get("header") is not None:
+                label = entry.get("label", entry["header"]) or entry["header"]
+                self._add_row(parent_menu, label, None, None, enabled=False)
+            elif entry.get("toggle") is not None:
+                self._add_toggle(parent_menu, entry, ident_map)
             elif entry.get("brush") is not None:
                 label = entry.get("label", entry["brush"])
                 icon = self._brush_icon(entry.get("brush", "")) if show_icons else None

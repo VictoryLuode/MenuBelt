@@ -15,6 +15,7 @@ from PyQt5.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QCheckBox,
+    QColorDialog,
     QComboBox,
     QDialog,
     QFileDialog,
@@ -36,6 +37,8 @@ from PyQt5.QtWidgets import (
 
 from .config import (
     BRUSH_BLEND_MODES,
+    BRUSH_VALUES,
+    DEFAULT_PALETTE,
     LAYER_BLEND_MODES,
     build_config_dict,
     catalog_actions,
@@ -56,6 +59,11 @@ TYPE_BLEND = "blend"
 TYPE_CAT = "category"
 TYPE_BRUSH = "brush"
 TYPE_BBLEND = "bblend"
+TYPE_BVAL = "bval"
+TYPE_COLOR = "color"
+TYPE_SEP = "sep"
+TYPE_HEADER = "header"
+TYPE_TOGGLE = "toggle"
 
 
 def _load_preset_tags():
@@ -168,6 +176,64 @@ def _add_brush_blend(dlg, payload):
         dlg._render_items()
 
 
+def _enum_brush_values(dlg, needle):
+    existing = {it.get("bval") for it in dlg._cur_items()
+                if isinstance(it, dict) and it.get("bval")}
+    for spec, label in BRUSH_VALUES:
+        if needle and needle not in label.lower() and needle not in spec.lower():
+            continue
+        if spec in existing:
+            continue
+        yield (spec, label)
+
+
+def _add_brush_value(dlg, payload):
+    spec = payload
+    existing = {it.get("bval") for it in dlg._cur_items()
+                if isinstance(it, dict) and it.get("bval")}
+    if spec in existing:
+        return
+    dlg._cur_items().append({"bval": spec,
+                             "label": dict(BRUSH_VALUES).get(spec, spec)})
+    dlg._render_items()
+
+
+def _enum_colors(dlg, needle):
+    # pickers first, then the default palette (added as foreground)
+    yield ("__pick_fg__", "Pick Foreground colour…")
+    yield ("__pick_bg__", "Pick Background colour…")
+    for hexc, name in DEFAULT_PALETTE:
+        if needle and needle not in name.lower() and needle not in hexc.lower():
+            continue
+        yield ("fg:" + hexc, name)
+
+
+def _add_color(dlg, payload):
+    if payload == "__pick_fg__":
+        col = QColorDialog.getColor()
+        if col.isValid():
+            _append_color(dlg, col.name(), "fg")
+    elif payload == "__pick_bg__":
+        col = QColorDialog.getColor()
+        if col.isValid():
+            _append_color(dlg, col.name(), "bg")
+    elif payload.startswith("fg:") or payload.startswith("bg:"):
+        target, hexc = payload.split(":", 1)
+        _append_color(dlg, hexc, target)
+
+
+def _append_color(dlg, hexc, target):
+    existing = {it.get("color") + ":" + it.get("target", "fg")
+                for it in dlg._cur_items()
+                if isinstance(it, dict) and it.get("color")}
+    key = hexc + ":" + target
+    if key in existing:
+        return
+    label = "%s (%s)" % (hexc, "Fg" if target == "fg" else "Bg")
+    dlg._cur_items().append({"color": hexc, "target": target, "label": label})
+    dlg._render_items()
+
+
 def _enum_brushes(dlg, needle):
     existing = {it.get("brush") for it in dlg._cur_items()
                 if isinstance(it, dict) and it.get("brush")}
@@ -198,6 +264,8 @@ ADD_SOURCES = [
     AddSource("actions", "Krita Actions", TYPE_CMD, _enum_actions, _add_action),
     AddSource("blend", "Layer Blend Mode", TYPE_BLEND, _enum_blend, _add_blend),
     AddSource("bblend", "Brush Blend Mode", TYPE_BBLEND, _enum_brush_blend, _add_brush_blend),
+    AddSource("bval", "Brush Value", TYPE_BVAL, _enum_brush_values, _add_brush_value),
+    AddSource("color", "Colour", TYPE_COLOR, _enum_colors, _add_color),
     AddSource("brush", "Brushes", TYPE_BRUSH, _enum_brushes, _add_brush),
 ]
 
@@ -372,6 +440,15 @@ class ListMenuDialog(QDialog):
             b.clicked.connect(slot)
             btn_row.addWidget(b)
         cm.addLayout(btn_row)
+        struct_row = QHBoxLayout()
+        for label, slot in (("Add Separator", self._add_separator),
+                            ("Add Header", self._add_header),
+                            ("Add Toggle", self._add_toggle)):
+            b = QPushButton(label)
+            b.clicked.connect(slot)
+            struct_row.addWidget(b)
+        struct_row.addStretch()
+        cm.addLayout(struct_row)
         cm.addWidget(settings_box)
         body.addWidget(current_box, 2)
 
@@ -641,6 +718,16 @@ class ListMenuDialog(QDialog):
                 return "blend:" + (it.get("blend", "") or "")
             if it.get("bblend") is not None:
                 return "bblend:" + (it.get("bblend", "") or "")
+            if it.get("bval") is not None:
+                return "bval:" + (it.get("bval", "") or "")
+            if it.get("color") is not None:
+                return "color:" + (it.get("color", "") or "") + ":" + (it.get("target", "fg") or "fg")
+            if it.get("sep"):
+                return "sep"
+            if it.get("header") is not None:
+                return "header:" + (it.get("header", "") or "")
+            if it.get("toggle") is not None:
+                return "toggle:" + (it.get("toggle", "") or "")
             if it.get("brush") is not None:
                 return "brush:" + (it.get("brush", "") or "")
             if it.get("name") is not None:
@@ -648,11 +735,15 @@ class ListMenuDialog(QDialog):
         return None
 
     def _item_icon(self, it):
-        """Return a QIcon for an item (Krita action icon / brush thumbnail), or None."""
+        """Return a QIcon for an item (action icon / brush thumb / colour swatch)."""
         if isinstance(it, str):
             aid = it
         elif isinstance(it, dict):
-            if it.get("id"):
+            if it.get("color") is not None:
+                return self._color_swatch_icon(it.get("color", ""))
+            if it.get("toggle") is not None:
+                aid = it["toggle"]
+            elif it.get("id"):
                 aid = it["id"]
             elif it.get("brush") is not None:
                 return self._brush_pixmap_icon(it["brush"])
@@ -669,6 +760,15 @@ class ListMenuDialog(QDialog):
         except Exception:
             pass
         return None
+
+    @staticmethod
+    def _color_swatch_icon(hexc):
+        try:
+            pix = QPixmap(20, 20)
+            pix.fill(QColor(hexc))
+            return QIcon(pix)
+        except Exception:
+            return None
 
     def _get_presets(self):
         """Cached dict of all Krita brush presets (name -> Resource)."""
@@ -726,6 +826,16 @@ class ListMenuDialog(QDialog):
                     typ, text = TYPE_BBLEND, f"\u25c6 {it.get('label', it['bblend'])}"
                 elif it.get("brush") is not None:
                     typ, text = TYPE_BRUSH, it.get("label", it["brush"])
+                elif it.get("bval") is not None:
+                    typ, text = TYPE_BVAL, it.get("label", it["bval"])
+                elif it.get("color") is not None:
+                    typ, text = TYPE_COLOR, "\U0001f3a8 " + (it.get("label", it["color"]) or it["color"])
+                elif it.get("sep"):
+                    typ, text = TYPE_SEP, "— — — — —"
+                elif it.get("header") is not None:
+                    typ, text = TYPE_HEADER, it.get("label", it["header"]) or it["header"]
+                elif it.get("toggle") is not None:
+                    typ, text = TYPE_TOGGLE, "\u2611 " + (it.get("label", it["toggle"]) or it["toggle"])
                 elif it.get("name") is not None:
                     typ, text = TYPE_MENU, f"\u25b8 {it['name']}"
             entry = QListWidgetItem(text)
@@ -737,7 +847,7 @@ class ListMenuDialog(QDialog):
             entry.setData(ROLE_TYPE, typ)
             entry.setToolTip(f"{text}  [{token}]")
             font = QFont()
-            font.setItalic(typ != TYPE_MENU)
+            font.setItalic(typ not in (TYPE_MENU, TYPE_SEP, TYPE_HEADER))
             entry.setFont(font)
             self.items_list.addItem(entry)
         self._reload_available()
@@ -865,6 +975,10 @@ class ListMenuDialog(QDialog):
                     icon = self._brush_pixmap_icon(payload)
                     if icon is not None:
                         leaf.setIcon(0, icon)
+                elif src.key == "color" and (payload.startswith("fg:") or payload.startswith("bg:")):
+                    icon = self._color_swatch_icon(payload.split(":", 1)[-1])
+                    if icon is not None:
+                        leaf.setIcon(0, icon)
                 self.add_tree.addTopLevelItem(leaf)
         self.add_tree.expandAll()
 
@@ -938,6 +1052,49 @@ class ListMenuDialog(QDialog):
             self, "Add Script", "Python code (runs when clicked; Krita available as 'krita'/'app'):")
         if ok2 and code.strip():
             self._cur_items().append({"script": code, "label": name.strip()})
+            self._render_items()
+
+    def _add_separator(self):
+        if not self.path:
+            return
+        self._cur_items().append({"sep": True, "label": ""})
+        self._render_items()
+
+    def _add_header(self):
+        if not self.path:
+            return
+        title, ok = QInputDialog.getText(self, "Add Header", "Header text:")
+        if ok and title.strip():
+            t = title.strip()
+            self._cur_items().append({"header": t, "label": t})
+            self._render_items()
+
+    def _add_toggle(self):
+        if not self.path:
+            return
+        checkable = []
+        try:
+            for a in Krita.instance().actions():
+                try:
+                    if a.isCheckable() and a.objectName():
+                        label = a.text().replace("&", "").strip() or a.objectName()
+                        checkable.append((a.objectName(), label))
+                except Exception:
+                    continue
+        except Exception:
+            checkable = []
+        checkable.sort(key=lambda x: x[1].lower())
+        if not checkable:
+            QMessageBox.information(self, "Add Toggle", "No checkable Krita actions found.")
+            return
+        items = ["%s  (%s)" % (label, name) for name, label in checkable]
+        sel, ok = QInputDialog.getItem(self, "Add Toggle",
+                                       "Pick a checkable action (✓ shows its state):",
+                                       items, 0, False)
+        if ok and sel:
+            name = sel.rsplit("  (", 1)[-1].rstrip(")")
+            self._cur_items().append({"toggle": name,
+                                      "label": dict(checkable).get(name, name)})
             self._render_items()
 
     def _remove_selected(self):

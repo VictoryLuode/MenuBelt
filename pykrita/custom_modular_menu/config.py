@@ -91,6 +91,28 @@ BRUSH_BLEND_MODES = [
     ("tangent_normalmap", "Tangent Normalmap"),
 ]
 
+# Quick brush value presets (View.setPaintingOpacity/Flow/BrushSize). spec:
+# "opacity:N" (%), "flow:N" (%), "size:N" (px).
+BRUSH_VALUES = [
+    ("opacity:10", "Opacity 10%"), ("opacity:25", "Opacity 25%"),
+    ("opacity:50", "Opacity 50%"), ("opacity:75", "Opacity 75%"),
+    ("opacity:100", "Opacity 100%"),
+    ("flow:10", "Flow 10%"), ("flow:25", "Flow 25%"),
+    ("flow:50", "Flow 50%"), ("flow:75", "Flow 75%"),
+    ("flow:100", "Flow 100%"),
+    ("size:8", "Size 8 px"), ("size:16", "Size 16 px"),
+    ("size:32", "Size 32 px"), ("size:64", "Size 64 px"),
+    ("size:128", "Size 128 px"),
+]
+
+# Colour favourites offered as addable swatches (fg) in the editor.
+DEFAULT_PALETTE = [
+    ("#000000", "Black"), ("#ffffff", "White"), ("#808080", "Grey"),
+    ("#ff0000", "Red"), ("#ff7800", "Orange"), ("#ffe000", "Yellow"),
+    ("#00b050", "Green"), ("#00e0e0", "Cyan"), ("#2030ff", "Blue"),
+    ("#e000ff", "Magenta"), ("#8a4b08", "Brown"), ("#ffb0c8", "Pink"),
+]
+
 # Default lists on first run (action ids verified against Krita 5.3 krita.action)
 DEFAULT_LISTS = [
     {"name": "Canvas Assist", "shortcut": "", "items": [
@@ -173,6 +195,21 @@ def _clean_items(items):
             elif it.get("bblend") is not None:
                 out.append({"bblend": it.get("bblend", ""),
                             "label": it.get("label", "") or ""})
+            elif it.get("bval") is not None:
+                out.append({"bval": it.get("bval", ""),
+                            "label": it.get("label", "") or ""})
+            elif it.get("color") is not None:
+                out.append({"color": it.get("color", ""),
+                            "target": it.get("target", "fg"),
+                            "label": it.get("label", "") or ""})
+            elif it.get("sep"):
+                out.append({"sep": True, "label": ""})
+            elif it.get("header") is not None:
+                out.append({"header": it.get("header", ""),
+                            "label": it.get("label", "") or ""})
+            elif it.get("toggle") is not None:
+                out.append({"toggle": it.get("toggle", ""),
+                            "label": it.get("label", "") or ""})
             elif it.get("brush") is not None:
                 out.append({"brush": it.get("brush", ""),
                             "label": it.get("label", "") or ""})
@@ -220,6 +257,21 @@ def _serialize_items(items):
                         "label": it.get("label", "") or ""})
         elif it.get("bblend") is not None:
             out.append({"bblend": it.get("bblend", ""),
+                        "label": it.get("label", "") or ""})
+        elif it.get("bval") is not None:
+            out.append({"bval": it.get("bval", ""),
+                        "label": it.get("label", "") or ""})
+        elif it.get("color") is not None:
+            out.append({"color": it.get("color", ""),
+                        "target": it.get("target", "fg"),
+                        "label": it.get("label", "") or ""})
+        elif it.get("sep"):
+            out.append({"sep": True, "label": ""})
+        elif it.get("header") is not None:
+            out.append({"header": it.get("header", ""),
+                        "label": it.get("label", "") or ""})
+        elif it.get("toggle") is not None:
+            out.append({"toggle": it.get("toggle", ""),
                         "label": it.get("label", "") or ""})
         elif it.get("brush") is not None:
             out.append({"brush": it.get("brush", ""),
@@ -455,6 +507,63 @@ def run_brush_blend(op_id):
             return
         except Exception:
             continue
+
+
+def run_brush_value(spec):
+    """Set a quick brush value. spec = 'opacity:N' | 'flow:N' | 'size:N'."""
+    if not isinstance(spec, str) or ":" not in spec:
+        return
+    kind, num = spec.split(":", 1)
+    try:
+        val = float(num)
+    except (TypeError, ValueError):
+        return
+    try:
+        win = Krita.instance().activeWindow()
+    except Exception:
+        return
+    if win is None:
+        return
+    for view in win.views():
+        try:
+            if kind == "opacity":
+                view.setPaintingOpacity(val / 100.0)
+            elif kind == "flow":
+                view.setPaintingFlow(val / 100.0)
+            elif kind == "size":
+                view.setBrushSize(val)
+            else:
+                return
+            return
+        except Exception:
+            continue
+
+
+def run_set_color(hex_str, target):
+    """Set the active foreground/background colour from a #rrggbb hex string."""
+    if not isinstance(hex_str, str) or not hex_str.startswith("#"):
+        return
+    try:
+        from PyQt5.QtGui import QColor
+        from krita import ManagedColor
+        qc = QColor(hex_str)
+        if not qc.isValid():
+            return
+        col = ManagedColor.fromQColor(qc)
+        win = Krita.instance().activeWindow()
+        if win is None:
+            return
+        for view in win.views():
+            try:
+                if target == "bg":
+                    view.setBackGroundColor(col)
+                else:
+                    view.setForeGroundColor(col)
+                return
+            except Exception:
+                continue
+    except Exception as e:
+        print(f"[CMM] set color error: {e}")
 
 
 def run_brush(name):
