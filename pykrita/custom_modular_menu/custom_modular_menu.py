@@ -150,6 +150,27 @@ class _MenuRow(QWidget):
         p.end()
 
 
+class _SeparatorRow(QWidget):
+    """A thin, non-interactive separator line painted in #2f2f2f.
+
+    Rendering it ourselves (instead of QMenu.addSeparator) lets us control the
+    exact colour without any QSS (which would suppress item icons).
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(6)
+
+    def sizeHint(self):
+        return QSize(0, 6)
+
+    def paintEvent(self, e):
+        p = QPainter(self)
+        p.setPen(QColor("#2f2f2f"))
+        p.drawLine(8, self.height() // 2, self.width() - 8, self.height() // 2)
+        p.end()
+
+
 class _KeyFilter(QObject):
     """Installed on the Krita main window; dispatches configured shortcuts."""
 
@@ -375,7 +396,9 @@ class ListMenuExtension(Extension):
         tf.setPointSize(max(6, tf.pointSize() - 1))
         title.setFont(tf)
         menu.insertAction(first, title)
-        menu.insertSeparator(first)
+        sep_act = QWidgetAction(menu)
+        sep_act.setDefaultWidget(_SeparatorRow())
+        menu.insertAction(first, sep_act)
         self._force_close_on_trigger(menu)
         pos, at = self._popup_anchor(menu, ident_map)
         self._popup_active = True
@@ -501,7 +524,9 @@ class ListMenuExtension(Extension):
             sub = menu.addMenu(lst["name"])
             _apply_dark_theme(sub)
             self._build_menu_node(sub, lst, ident_map, lst.get("show_icons", True))
-        menu.addSeparator()
+        sep_act = QWidgetAction(menu)
+        sep_act.setDefaultWidget(_SeparatorRow())
+        menu.addAction(sep_act)
         edit_act = menu.addAction("Configure Custom Modular Menu…")
         edit_act.triggered.connect(self.open_editor)
         self._force_close_on_trigger(menu)
@@ -683,7 +708,10 @@ class ListMenuExtension(Extension):
                 if ident_map is not None:
                     ident_map[act] = ("color", hexc + ":" + target)
             elif entry.get("sep"):
-                parent_menu.addSeparator()
+                sep_act = QWidgetAction(parent_menu)
+                sep_widget = _SeparatorRow()
+                sep_act.setDefaultWidget(sep_widget)
+                parent_menu.addAction(sep_act)
             elif entry.get("header") is not None:
                 label = entry.get("label", entry["header"]) or entry["header"]
                 self._add_row(parent_menu, label, None, None, enabled=False)

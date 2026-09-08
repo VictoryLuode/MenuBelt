@@ -27,6 +27,7 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QMessageBox,
     QPushButton,
     QTreeWidget,
@@ -432,23 +433,21 @@ class ListMenuDialog(QDialog):
         st.addLayout(sc_row)
 
         btn_row = QHBoxLayout()
-        for label, slot in (("Add Submenu", self._add_submenu),
-                            ("Add Script", self._add_script),
-                            ("Rename", self._rename_item),
+        add_btn = QPushButton("Add")
+        add_menu = QMenu(add_btn)
+        add_menu.addAction("Add Submenu", self._add_submenu)
+        add_menu.addAction("Add Header", self._add_header)
+        add_menu.addAction("Add Separator", self._add_separator)
+        add_menu.addAction("Add Toggle", self._add_toggle)
+        add_btn.setMenu(add_menu)
+        btn_row.addWidget(add_btn)
+        for label, slot in (("Rename", self._rename_item),
                             ("Remove", self._remove_selected)):
             b = QPushButton(label)
             b.clicked.connect(slot)
             btn_row.addWidget(b)
+        btn_row.addStretch()
         cm.addLayout(btn_row)
-        struct_row = QHBoxLayout()
-        for label, slot in (("Add Separator", self._add_separator),
-                            ("Add Header", self._add_header),
-                            ("Add Toggle", self._add_toggle)):
-            b = QPushButton(label)
-            b.clicked.connect(slot)
-            struct_row.addWidget(b)
-        struct_row.addStretch()
-        cm.addLayout(struct_row)
         cm.addWidget(settings_box)
         body.addWidget(current_box, 2)
 
@@ -1041,18 +1040,6 @@ class ListMenuDialog(QDialog):
             return
         self._cur_items().append({"name": name.strip(), "shortcut": "", "items": []})
         self._render_items()
-
-    def _add_script(self):
-        if not self.path:
-            return
-        name, ok = QInputDialog.getText(self, "Add Script", "Script name:")
-        if not ok or not name.strip():
-            return
-        code, ok2 = QInputDialog.getMultiLineText(
-            self, "Add Script", "Python code (runs when clicked; Krita available as 'krita'/'app'):")
-        if ok2 and code.strip():
-            self._cur_items().append({"script": code, "label": name.strip()})
-            self._render_items()
 
     def _add_separator(self):
         if not self.path:
