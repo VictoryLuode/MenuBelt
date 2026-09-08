@@ -251,7 +251,6 @@ class ListMenuDialog(QDialog):
         pos_row.addWidget(self.pos_combo)
         pos_row.addStretch()
         st.addLayout(pos_row)
-        cm.addWidget(settings_box)
 
         btn_row = QHBoxLayout()
         for label, slot in (("Add Submenu", self._add_submenu),
@@ -262,6 +261,7 @@ class ListMenuDialog(QDialog):
             b.clicked.connect(slot)
             btn_row.addWidget(b)
         cm.addLayout(btn_row)
+        cm.addWidget(settings_box)
         body.addWidget(current_box, 2)
 
         # Add items (pick a Krita action or a layer blend mode to add)
