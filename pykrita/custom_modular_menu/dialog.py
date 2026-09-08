@@ -9,7 +9,7 @@ import os
 import sqlite3
 
 from krita import Krita, Palette
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import QRect, Qt
 from PyQt5.QtGui import QBrush, QColor, QFont, QIcon, QKeySequence, QPixmap
 from PyQt5.QtWidgets import (
     QAbstractItemView,
@@ -33,6 +33,8 @@ from PyQt5.QtWidgets import (
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
+    QStyle,
+    QStyledItemDelegate,
 )
 
 from .config import (
@@ -51,6 +53,7 @@ from .config import (
 ROLE_INDEX = Qt.UserRole
 ROLE_TOKEN = Qt.UserRole + 1
 ROLE_TYPE = Qt.UserRole + 2
+ROLE_CHECKED = Qt.UserRole + 3
 TYPE_CMD = "cmd"
 TYPE_MENU = "menu"
 TYPE_BLEND = "blend"
@@ -256,6 +259,67 @@ ADD_SOURCES = [
 ]
 
 
+class _MenuItemDelegate(QStyledItemDelegate):
+    """Paints the Current Menu list exactly like the popup list menu (icon column,
+    30px rows, separators, headers, checkable toggles) so the editor mirrors the
+    real menu. Drawing it ourselves (not the default QListWidgetItem style) lets
+    us match the popup's geometry and colours while keeping click/drag behaviour."""
+
+    HEIGHT = 32
+    ICON_X = 10
+    ICON_SIZE = 20
+    TEXT_X = 40
+
+    def sizeHint(self, option, index):
+        typ = index.data(ROLE_TYPE)
+        h = 8 if typ == TYPE_SEP else self.HEIGHT
+        return QSize(300, h)
+
+    def paint(self, p, option, index):
+        typ = index.data(ROLE_TYPE)
+        text = index.data(Qt.DisplayRole) or ""
+        icon = index.data(Qt.DecorationRole)
+        checked = bool(index.data(ROLE_CHECKED))
+        is_sel = bool(option.state & QStyle.State_Selected)
+        is_hover = bool(option.state & QStyle.State_MouseOver)
+        if is_sel:
+            p.fillRect(option.rect, QColor(61, 61, 61))
+        elif is_hover:
+            p.fillRect(option.rect, QColor(46, 46, 46))
+        if typ == TYPE_SEP:
+            p.setPen(QColor("#4a4a4a"))
+            y = option.rect.center().y()
+            p.drawLine(option.rect.left() + 8, y, option.rect.right() - 8, y)
+            return
+        if typ == TYPE_HEADER:
+            color = QColor("#9a9a9a")
+        elif is_sel:
+            color = QColor("#ffffff")
+        else:
+            color = QColor("#e8e8e8")
+        x = self.ICON_X
+        if typ == TYPE_TOGGLE:
+            box = 16
+            by = option.rect.center().y() - box // 2
+            p.setPen(QColor(120, 120, 120))
+            p.setBrush(Qt.NoBrush)
+            p.drawRect(x, by, box, box)
+            if checked:
+                p.setPen(QColor(230, 230, 230))
+                p.drawLine(x + 3, by + box // 2, x + box // 2, by + box - 3)
+                p.drawLine(x + box // 2, by + box - 3, x + box - 3, by + 3)
+            x = self.TEXT_X
+        elif icon is not None and not icon.isNull():
+            pix = icon.pixmap(QSize(self.ICON_SIZE, self.ICON_SIZE))
+            p.drawPixmap(x, option.rect.center().y() - self.ICON_SIZE // 2, pix)
+            x = self.TEXT_X
+        fm = option.fontMetrics
+        p.setPen(color)
+        p.drawText(QRect(x, option.rect.top(), option.rect.right() - x,
+                         option.rect.height()),
+                   Qt.AlignVCenter | Qt.AlignLeft, text)
+
+
 class ListMenuDialog(QDialog):
     """Multi-menu editor with nested submenu navigation + a live Current Menu list."""
 
@@ -378,6 +442,9 @@ class ListMenuDialog(QDialog):
         self.items_list.setDragDropMode(QAbstractItemView.InternalMove)
         self.items_list.setDefaultDropAction(Qt.MoveAction)
         self.items_list.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.items_list.setUniformItemSizes(False)
+        self.items_list.setSpacing(0)
+        self.items_list.setItemDelegate(_MenuItemDelegate(self.items_list))
         self.items_list.model().rowsMoved.connect(self._sync_items_order)
         cm.addWidget(self.items_list)
 
@@ -876,34 +943,39 @@ class ListMenuDialog(QDialog):
                 if it.get("id"):
                     text = it.get("label", "") or self._catalog.get(it["id"], it["id"])
                 elif it.get("blend") is not None:
-                    typ, text = TYPE_BLEND, f"\u25c6 {it.get('label', it['blend'])}"
+                    typ, text = TYPE_BLEND, it.get("label", it["blend"])
                 elif it.get("bblend") is not None:
-                    typ, text = TYPE_BBLEND, f"\u25c6 {it.get('label', it['bblend'])}"
+                    typ, text = TYPE_BBLEND, it.get("label", it["bblend"])
                 elif it.get("brush") is not None:
                     typ, text = TYPE_BRUSH, it.get("label", it["brush"])
                 elif it.get("bval") is not None:
                     typ, text = TYPE_BVAL, it.get("label", it["bval"])
                 elif it.get("color") is not None:
-                    typ, text = TYPE_COLOR, "\U0001f3a8 " + (it.get("label", it["color"]) or it["color"])
+                    typ, text = TYPE_COLOR, it.get("label", it["color"])
                 elif it.get("sep"):
-                    typ, text = TYPE_SEP, "— — — — —"
+                    typ, text = TYPE_SEP, ""
                 elif it.get("header") is not None:
                     typ, text = TYPE_HEADER, it.get("label", it["header"]) or it["header"]
                 elif it.get("toggle") is not None:
-                    typ, text = TYPE_TOGGLE, "\u2611 " + (it.get("label", it["toggle"]) or it["toggle"])
+                    typ, text = TYPE_TOGGLE, it.get("label", it["toggle"]) or it["toggle"]
                 elif it.get("name") is not None:
-                    typ, text = TYPE_MENU, f"\u25b8 {it['name']}"
+                    typ, text = TYPE_MENU, it["name"]
             entry = QListWidgetItem(text)
             icon = self._item_icon(it)
-            if icon is not None:
+            if icon is not None and typ != TYPE_TOGGLE:
                 entry.setIcon(icon)
             entry.setData(ROLE_INDEX, idx)
             entry.setData(ROLE_TOKEN, token)
             entry.setData(ROLE_TYPE, typ)
             entry.setToolTip(f"{text}  [{token}]")
-            font = QFont()
-            font.setItalic(typ not in (TYPE_MENU, TYPE_SEP, TYPE_HEADER))
-            entry.setFont(font)
+            if typ == TYPE_TOGGLE:
+                checked = False
+                try:
+                    act = Krita.instance().action(it.get("toggle", ""))
+                    checked = bool(act.isChecked()) if act else False
+                except Exception:
+                    checked = False
+                entry.setData(ROLE_CHECKED, checked)
             self.items_list.addItem(entry)
 
     def _existing_cmd_ids(self):
