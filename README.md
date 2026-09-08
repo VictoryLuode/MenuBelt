@@ -24,7 +24,7 @@ Copy the `pykrita/` and `actions/` folders into the Krita resource directory
 Or, from the repo root, run `deploy.bat`.
 
 ## Usage
-- **Edit menu:** **Tools → Custom Modular Menu → Edit Custom List**.
+- **Edit menu:** **Tools → Custom Modular Menu → Configure Custom Modular Menu**.
 - **Item types:** commands (Krita actions), nested **submenus**, **Python
   scripts**, and **layer blend modes** (set on the active layer via
   `Node.setBlendingMode`).

@@ -18,7 +18,7 @@
 
         <Action name="custom_modular_menu_edit">
         <icon></icon>
-        <text>Edit Custom List</text>
+        <text>Configure Custom Modular Menu</text>
         <whatsThis></whatsThis>
         <toolTip>Configure the lists and their actions</toolTip>
         <iconText></iconText>

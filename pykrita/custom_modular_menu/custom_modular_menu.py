@@ -87,7 +87,7 @@ class ListMenuExtension(Extension):
 
         # Editor action (shown as a footer item of the Tools submenu)
         edit_action = window.createAction(
-            "custom_modular_menu_edit", "Edit Custom List", "")
+            "custom_modular_menu_edit", "Configure Custom Modular Menu", "")
         edit_action.triggered.connect(self.open_editor)
 
         # Tools > Custom Modular Menu root
@@ -251,7 +251,7 @@ class ListMenuExtension(Extension):
             sub = menu.addMenu(lst["name"])
             self._build_menu_node(sub, lst, ident_map)
         menu.addSeparator()
-        edit_act = menu.addAction("Edit Custom List…")
+        edit_act = menu.addAction("Configure Custom Modular Menu…")
         edit_act.triggered.connect(self.open_editor)
         self._force_close_on_trigger(menu)
         return menu
