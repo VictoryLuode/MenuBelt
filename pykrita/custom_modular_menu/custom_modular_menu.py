@@ -27,8 +27,9 @@ from PyQt5.QtWidgets import (
     QTextEdit,
 )
 
-from .config import (load_lists, notify_refresh, register_refresh,
-                     run_brush, run_composite_op, run_script)
+from .config import (load_last_identity, load_lists, notify_refresh,
+                     register_refresh, save_last_identity, run_brush,
+                     run_composite_op, run_script)
 from .pie import PieWidget
 
 # Keys that on their own are modifiers, not real shortcuts
@@ -107,7 +108,7 @@ class ListMenuExtension(Extension):
         self._shortcut_map = {}   # shortcut string -> callable
         self._popup_active = False
         self._popup_menu_ref = None
-        self._last_identity = None  # identity of last-triggered item (reposition marker)
+        self._last_identity = load_last_identity()  # persisted last-triggered item
         self._pie = None            # active PieWidget (None when no pie is open)
         self._ignore_until = 0.0  # debounce: swallow re-triggers right after closing
         # App-level key filter (global, sees every key press regardless of focus)
@@ -253,6 +254,7 @@ class ListMenuExtension(Extension):
                 ident = ident_map.get(triggered)
                 if ident is not None:
                     self._last_identity = ident
+                    save_last_identity(ident)
         finally:
             self._popup_active = False
             self._popup_menu_ref = None
@@ -302,6 +304,7 @@ class ListMenuExtension(Extension):
                 ident = ident_map.get(triggered)
                 if ident is not None:
                     self._last_identity = ident
+                    save_last_identity(ident)
         finally:
             self._popup_active = False
             self._popup_menu_ref = None

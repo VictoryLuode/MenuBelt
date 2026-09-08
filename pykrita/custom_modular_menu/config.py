@@ -226,13 +226,50 @@ def load_popup_shortcut():
 def save_config(popup_shortcut, lists):
     """Write popup_shortcut + multi-list model to JSON (compact item form)."""
     try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            old = json.load(f)
+        last_identity = old.get("last_identity")
+    except (OSError, ValueError):
+        last_identity = None
+    try:
+        data = {
+            "popup_shortcut": popup_shortcut or "",
+            "lists": _serialize_lists(lists),
+        }
+        if last_identity is not None:
+            data["last_identity"] = last_identity
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump({
-                "popup_shortcut": popup_shortcut or "",
-                "lists": _serialize_lists(lists),
-            }, f, ensure_ascii=False, indent=2)
+            json.dump(data, f, ensure_ascii=False, indent=2)
     except OSError as e:
         print(f"[CMM] failed to save config: {e}")
+
+
+def load_last_identity():
+    """Return the persisted last-triggered item identity (or None)."""
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        val = data.get("last_identity")
+        if val:
+            return tuple(val)
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def save_last_identity(identity):
+    """Persist the last-triggered item identity for the 'last used' popup position."""
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        data = {}
+    data["last_identity"] = list(identity) if identity else None
+    try:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except OSError as e:
+        print(f"[CMM] failed to save last identity: {e}")
 
 
 def save_lists(lists):
