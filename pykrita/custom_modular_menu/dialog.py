@@ -35,6 +35,7 @@ from PyQt5.QtWidgets import (
 )
 
 from .config import (
+    BRUSH_BLEND_MODES,
     LAYER_BLEND_MODES,
     build_config_dict,
     catalog_actions,
@@ -54,6 +55,7 @@ TYPE_SCRIPT = "script"
 TYPE_BLEND = "blend"
 TYPE_CAT = "category"
 TYPE_BRUSH = "brush"
+TYPE_BBLEND = "bblend"
 
 
 def _load_preset_tags():
@@ -145,6 +147,27 @@ def _add_blend(dlg, payload):
         dlg._render_items()
 
 
+def _enum_brush_blend(dlg, needle):
+    existing = {it.get("bblend") for it in dlg._cur_items()
+                if isinstance(it, dict) and it.get("bblend")}
+    for oid, label in BRUSH_BLEND_MODES:
+        if needle and needle not in label.lower() and needle not in oid.lower():
+            continue
+        if oid in existing:
+            continue
+        yield (oid, label)
+
+
+def _add_brush_blend(dlg, payload):
+    oid = payload
+    existing = {it.get("bblend") for it in dlg._cur_items()
+                if isinstance(it, dict) and it.get("bblend")}
+    if oid not in existing:
+        dlg._cur_items().append({"bblend": oid,
+                                 "label": dict(BRUSH_BLEND_MODES).get(oid, oid)})
+        dlg._render_items()
+
+
 def _enum_brushes(dlg, needle):
     existing = {it.get("brush") for it in dlg._cur_items()
                 if isinstance(it, dict) and it.get("brush")}
@@ -174,6 +197,7 @@ def _add_brush(dlg, payload):
 ADD_SOURCES = [
     AddSource("actions", "Krita Actions", TYPE_CMD, _enum_actions, _add_action),
     AddSource("blend", "Layer Blend Mode", TYPE_BLEND, _enum_blend, _add_blend),
+    AddSource("bblend", "Brush Blend Mode", TYPE_BBLEND, _enum_brush_blend, _add_brush_blend),
     AddSource("brush", "Brushes", TYPE_BRUSH, _enum_brushes, _add_brush),
 ]
 
@@ -615,6 +639,8 @@ class ListMenuDialog(QDialog):
                 return "script:" + (it.get("label", "") or "")
             if it.get("blend") is not None:
                 return "blend:" + (it.get("blend", "") or "")
+            if it.get("bblend") is not None:
+                return "bblend:" + (it.get("bblend", "") or "")
             if it.get("brush") is not None:
                 return "brush:" + (it.get("brush", "") or "")
             if it.get("name") is not None:
@@ -696,6 +722,8 @@ class ListMenuDialog(QDialog):
                     typ, text = TYPE_SCRIPT, f"[script] {it.get('label', 'Script')}"
                 elif it.get("blend") is not None:
                     typ, text = TYPE_BLEND, f"\u25c6 {it.get('label', it['blend'])}"
+                elif it.get("bblend") is not None:
+                    typ, text = TYPE_BBLEND, f"\u25c6 {it.get('label', it['bblend'])}"
                 elif it.get("brush") is not None:
                     typ, text = TYPE_BRUSH, it.get("label", it["brush"])
                 elif it.get("name") is not None:
@@ -759,6 +787,13 @@ class ListMenuDialog(QDialog):
                 "id: %s\n"
                 "API: Krita.instance().activeDocument().activeNode()\n"
                 "     .setBlendingMode('%s')" % (label, payload, payload))
+        elif item.data(0, ROLE_TYPE) == TYPE_BBLEND and payload:
+            label = dict(BRUSH_BLEND_MODES).get(payload, payload)
+            self.detail_box.setText(
+                "Brush blend mode: %s\n"
+                "id: %s\n"
+                "API: Krita.instance().activeWindow().activeView()\n"
+                "     .setCurrentBlendingMode('%s')" % (label, payload, payload))
         else:
             self.detail_box.setText("")
 

@@ -32,7 +32,7 @@ from PyQt5.QtWidgets import (
 
 from .config import (load_last_identity, load_lists, notify_refresh,
                      register_refresh, save_last_identity, run_brush,
-                     run_composite_op, run_script)
+                     run_brush_blend, run_composite_op, run_script)
 from .pie import PieWidget
 
 # Keys that on their own are modifiers, not real shortcuts
@@ -387,6 +387,11 @@ class ListMenuExtension(Extension):
                     slices.append((entry.get("label", oid), None,
                                    lambda o=oid: run_composite_op(o)))
                     continue
+                elif entry.get("bblend") is not None:
+                    oid = entry.get("bblend", "")
+                    slices.append((entry.get("label", oid), None,
+                                   lambda o=oid: run_brush_blend(o)))
+                    continue
                 elif entry.get("brush") is not None:
                     bfile = entry.get("brush", "")
                     slices.append((entry.get("label", bfile), self._brush_icon(bfile),
@@ -563,6 +568,12 @@ class ListMenuExtension(Extension):
                                     lambda o=entry.get("blend", ""): run_composite_op(o))
                 if ident_map is not None:
                     ident_map[act] = ("blend", entry.get("blend", ""))
+            elif entry.get("bblend") is not None:
+                label = entry.get("label", entry["bblend"])
+                act = self._add_row(parent_menu, label, None,
+                                    lambda o=entry.get("bblend", ""): run_brush_blend(o))
+                if ident_map is not None:
+                    ident_map[act] = ("bblend", entry.get("bblend", ""))
             elif entry.get("brush") is not None:
                 label = entry.get("label", entry["brush"])
                 icon = self._brush_icon(entry.get("brush", "")) if show_icons else None

@@ -47,6 +47,50 @@ LAYER_BLEND_MODES = [
     ("luminize", "Luminosity"),
 ]
 
+# Brush painting blend-mode ids (KoCompositeOpRegistry.h) accepted by
+# View.setCurrentBlendingMode() — the modes applied to brush STROKES, distinct
+# from the layer modes above.
+BRUSH_BLEND_MODES = [
+    ("normal", "Normal"),
+    ("behind", "Behind"),
+    ("erase", "Erase"),
+    ("clear", "Clear"),
+    ("dissolve", "Dissolve"),
+    ("multiply", "Multiply"),
+    ("screen", "Screen"),
+    ("overlay", "Overlay"),
+    ("soft_light", "Soft Light"),
+    ("hard_light", "Hard Light"),
+    ("vivid_light", "Vivid Light"),
+    ("linear light", "Linear Light"),
+    ("pin_light", "Pin Light"),
+    ("hard_mix", "Hard Mix"),
+    ("darken", "Darken"),
+    ("lighten", "Lighten"),
+    ("burn", "Burn (Color Burn)"),
+    ("linear_burn", "Linear Burn"),
+    ("dodge", "Color Dodge"),
+    ("linear_dodge", "Linear Dodge"),
+    ("add", "Addition"),
+    ("subtract", "Subtract"),
+    ("divide", "Divide"),
+    ("diff", "Difference"),
+    ("exclusion", "Exclusion"),
+    ("hue", "Hue"),
+    ("saturation", "Saturation"),
+    ("color", "Color"),
+    ("luminize", "Luminosity"),
+    ("alpha_darken", "Alpha Darken"),
+    ("marker", "Marker"),
+    ("colorize", "Colorize"),
+    ("greater", "Greater"),
+    ("darker color", "Darker Color"),
+    ("lighter color", "Lighter Color"),
+    ("displace", "Displace"),
+    ("bumpmap", "Bumpmap"),
+    ("tangent_normalmap", "Tangent Normalmap"),
+]
+
 # Default lists on first run (action ids verified against Krita 5.3 krita.action)
 DEFAULT_LISTS = [
     {"name": "Canvas Assist", "shortcut": "", "items": [
@@ -126,6 +170,9 @@ def _clean_items(items):
             elif it.get("blend") is not None:
                 out.append({"blend": it.get("blend", ""),
                             "label": it.get("label", "") or ""})
+            elif it.get("bblend") is not None:
+                out.append({"bblend": it.get("bblend", ""),
+                            "label": it.get("label", "") or ""})
             elif it.get("brush") is not None:
                 out.append({"brush": it.get("brush", ""),
                             "label": it.get("label", "") or ""})
@@ -170,6 +217,9 @@ def _serialize_items(items):
                         "label": it.get("label", "") or ""})
         elif it.get("blend") is not None:
             out.append({"blend": it.get("blend", ""),
+                        "label": it.get("label", "") or ""})
+        elif it.get("bblend") is not None:
+            out.append({"bblend": it.get("bblend", ""),
                         "label": it.get("label", "") or ""})
         elif it.get("brush") is not None:
             out.append({"brush": it.get("brush", ""),
@@ -387,6 +437,24 @@ def run_composite_op(op_id):
             node.setBlendingMode(op_id)
         except Exception as e:
             print(f"[CMM] setBlendingMode error: {e}")
+
+
+def run_brush_blend(op_id):
+    """Set the active brush painting blend mode (View.setCurrentBlendingMode)."""
+    if not isinstance(op_id, str) or not op_id:
+        return
+    try:
+        win = Krita.instance().activeWindow()
+    except Exception:
+        return
+    if win is None:
+        return
+    for view in win.views():
+        try:
+            view.setCurrentBlendingMode(op_id)
+            return
+        except Exception:
+            continue
 
 
 def run_brush(name):
