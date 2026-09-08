@@ -15,7 +15,7 @@ shortcut_composer plugin).
 import time
 
 from krita import Extension, Krita
-from PyQt5.QtCore import QEvent, QObject, Qt
+from PyQt5.QtCore import QEvent, QObject, QPoint, Qt
 from PyQt5.QtGui import QCursor, QKeySequence
 from PyQt5.QtWidgets import (
     QAction,
@@ -169,16 +169,33 @@ class ListMenuExtension(Extension):
                 return act
         return None
 
+    def _popup_anchor(self, menu, ident_map):
+        """Return (pos, at_action) so the popup opens with the LAST-triggered item
+        under the cursor (both axes), falling back to the raw cursor position."""
+        pos = QCursor.pos()
+        at = self._find_action(ident_map, self._last_identity)
+        if at is not None:
+            try:
+                rect = menu.actionGeometry(at)
+                if rect.isValid():
+                    # Qt anchors the menu's left edge at pos.x (that's why X sits at
+                    # the leftmost); shift left by the item's centre so the cursor
+                    # points at the item's middle instead.
+                    pos = QPoint(pos.x() - rect.center().x(), pos.y())
+            except Exception:
+                pass
+        return pos, at
+
     def pop_menu(self, *_):
         """Open the whole multi-list menu under the cursor of the active window."""
         if self._popup_active or time.time() < self._ignore_until:
             return
         ident_map = {}
         menu = self._build_popup_menu(self._active_window_widget(), ident_map)
-        at = self._find_action(ident_map, self._last_identity)
+        pos, at = self._popup_anchor(menu, ident_map)
         self._popup_active = True
         try:
-            triggered = menu.exec_(QCursor.pos(), at)
+            triggered = menu.exec_(pos, at)
             if triggered is not None:
                 ident = ident_map.get(triggered)
                 if ident is not None:
@@ -207,10 +224,10 @@ class ListMenuExtension(Extension):
             menu.deleteLater()
             return
         self._force_close_on_trigger(menu)
-        at = self._find_action(ident_map, self._last_identity)
+        pos, at = self._popup_anchor(menu, ident_map)
         self._popup_active = True
         try:
-            triggered = menu.exec_(QCursor.pos(), at)
+            triggered = menu.exec_(pos, at)
             if triggered is not None:
                 ident = ident_map.get(triggered)
                 if ident is not None:
