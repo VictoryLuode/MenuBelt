@@ -41,9 +41,6 @@ Or watch on [YouTube](https://youtu.be/hjSDBv3bs3Q).
    (Windows `%APPDATA%/krita/`, Linux `~/.config/krita/`).
 3. Restart Krita, then enable it in **Settings → Configure Krita → Python Plugin Manager**.
 
-> **Warning:** avoid binding Krita's reserved Canvas Inputs keys (`Space`, `R`, `Y`, `V`, `1`–`6`)
-> to your shortcuts — they can conflict with the plugin's.
-
 ## Quick start
 
 **Tools → MenuBelt → Configure MenuBelt**, pick a list, add items from a source
