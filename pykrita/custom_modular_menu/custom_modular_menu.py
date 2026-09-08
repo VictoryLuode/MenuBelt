@@ -56,8 +56,6 @@ def _apply_dark_theme(menu):
     pal.setColor(QPalette.Disabled, QPalette.Text, QColor(154, 154, 154))
     pal.setColor(QPalette.Disabled, QPalette.WindowText, QColor(154, 154, 154))
     menu.setPalette(pal)
-    # Force a non-zero icon column so action/brush icons actually show.
-    menu.setIconSize(QSize(20, 20))
 
 
 class _KeyFilter(QObject):
@@ -270,9 +268,7 @@ class ListMenuExtension(Extension):
         ident_map = {}
         menu = QMenu(parent)
         _apply_dark_theme(menu)
-        if not lst.get("show_icons", True):
-            menu.setIconSize(QSize(0, 0))
-        self._build_menu_node(menu, lst, ident_map)
+        self._build_menu_node(menu, lst, ident_map, lst.get("show_icons", True))
         if not menu.actions():
             menu.deleteLater()
             return
@@ -381,9 +377,7 @@ class ListMenuExtension(Extension):
                 continue
             sub = menu.addMenu(lst["name"])
             _apply_dark_theme(sub)
-            if not lst.get("show_icons", True):
-                sub.setIconSize(QSize(0, 0))
-            self._build_menu_node(sub, lst, ident_map)
+            self._build_menu_node(sub, lst, ident_map, lst.get("show_icons", True))
         menu.addSeparator()
         edit_act = menu.addAction("Configure Custom Modular Menu…")
         edit_act.triggered.connect(self.open_editor)
@@ -395,12 +389,12 @@ class ListMenuExtension(Extension):
         if act is not None:
             menu.addAction(act)
 
-    def _make_item_action(self, action_id, label, parent):
+    def _make_item_action(self, action_id, label, parent, show_icons=True):
         """Return a QAction for a menu item.
 
-        No custom label -> reuse Krita's native QAction (keeps icon + live
-        enable/disable state). Custom label -> proxy QAction with the custom
-        text + native icon, triggering the native action.
+        show_icons True + no custom label -> reuse Krita's native QAction (keeps
+        icon + live enable/disable). Otherwise -> proxy QAction (custom text,
+        icon copied from native when enabled) that triggers the native action.
         """
         try:
             native = Krita.instance().action(action_id)
@@ -408,12 +402,13 @@ class ListMenuExtension(Extension):
             native = None
         if native is None:
             return None
-        if not label:
+        if not label and show_icons:
             return native
-        act = QAction(label, parent)
-        icon = native.icon()
-        if not icon.isNull():
-            act.setIcon(icon)
+        act = QAction(label or native.text().replace("&", "").strip(), parent)
+        if show_icons:
+            icon = native.icon()
+            if not icon.isNull():
+                act.setIcon(icon)
         try:
             act.setEnabled(native.isEnabled())
         except RuntimeError:
@@ -444,7 +439,7 @@ class ListMenuExtension(Extension):
             pass
         return None
 
-    def _build_menu_node(self, parent_menu, node, ident_map=None):
+    def _build_menu_node(self, parent_menu, node, ident_map=None, show_icons=True):
         """Recursively add a menu node's commands, scripts and submenus.
 
         ident_map (optional) maps each added leaf QAction -> an identity tuple,
@@ -475,9 +470,10 @@ class ListMenuExtension(Extension):
                     continue
                 elif entry.get("brush") is not None:
                     br_act = QAction(entry.get("label", entry["brush"]), parent_menu)
-                    icon = self._brush_icon(entry.get("brush", ""))
-                    if icon is not None:
-                        br_act.setIcon(icon)
+                    if show_icons:
+                        icon = self._brush_icon(entry.get("brush", ""))
+                        if icon is not None:
+                            br_act.setIcon(icon)
                     if ident_map is not None:
                         ident_map[br_act] = ("brush", entry.get("brush", ""))
                     br_act.triggered.connect(
@@ -486,13 +482,13 @@ class ListMenuExtension(Extension):
                     continue
                 elif entry.get("name") is not None:
                     sub = parent_menu.addMenu(entry["name"])
-                    self._build_menu_node(sub, entry, ident_map)
+                    self._build_menu_node(sub, entry, ident_map, show_icons)
                     continue
                 else:
                     continue
             else:
                 continue
-            act = self._make_item_action(aid, label, parent_menu)
+            act = self._make_item_action(aid, label, parent_menu, show_icons)
             if act is not None:
                 if ident_map is not None:
                     ident_map[act] = ("cmd", aid)
