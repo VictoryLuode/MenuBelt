@@ -54,7 +54,7 @@ Bind a list shortcut by clicking its *Shortcut* field; the whole-menu trigger li
 
 - [Report a bug](../../issues)
 - [Latest release](../../releases)
-- [Krita Artists forum](https://krita-artists.org/) — *add your release post link here*
+- [Krita Artists forum](https://krita-artists.org/t/menubelt-build-your-own-multi-list-action-menus-list-pie/190122)
 
 ## License
 
