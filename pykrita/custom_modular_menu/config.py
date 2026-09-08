@@ -126,6 +126,9 @@ def _clean_items(items):
             elif it.get("blend") is not None:
                 out.append({"blend": it.get("blend", ""),
                             "label": it.get("label", "") or ""})
+            elif it.get("brush") is not None:
+                out.append({"brush": it.get("brush", ""),
+                            "label": it.get("label", "") or ""})
             elif it.get("name") is not None:
                 out.append({
                     "name": it.get("name", ""),
@@ -167,6 +170,9 @@ def _serialize_items(items):
                         "label": it.get("label", "") or ""})
         elif it.get("blend") is not None:
             out.append({"blend": it.get("blend", ""),
+                        "label": it.get("label", "") or ""})
+        elif it.get("brush") is not None:
+            out.append({"brush": it.get("brush", ""),
                         "label": it.get("label", "") or ""})
         elif it.get("name") is not None:
             out.append({
@@ -344,6 +350,28 @@ def run_composite_op(op_id):
             node.setBlendingMode(op_id)
         except Exception as e:
             print(f"[CMM] setBlendingMode error: {e}")
+
+
+def run_brush(filename):
+    """Set the active Krita brush preset from a preset filename (View API)."""
+    if not isinstance(filename, str) or not filename:
+        return
+    try:
+        target = None
+        for p in Krita.instance().resources("preset"):
+            try:
+                if p.filename() == filename:
+                    target = p
+                    break
+            except Exception:
+                continue
+        if target is None:
+            return
+        view = Krita.instance().activeWindow().activeView()
+        if view is not None:
+            view.setCurrentPreset(target)
+    except Exception as e:
+        print(f"[CMM] run_brush error: {e}")
 
 
 # ---------- Refresh notification (reload Tools menu / Docker / shortcuts after editing) ----------

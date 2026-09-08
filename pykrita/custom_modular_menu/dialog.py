@@ -49,6 +49,7 @@ TYPE_MENU = "menu"
 TYPE_SCRIPT = "script"
 TYPE_BLEND = "blend"
 TYPE_CAT = "category"
+TYPE_BRUSH = "brush"
 
 
 class AddSource:
@@ -104,10 +105,52 @@ def _add_blend(dlg, payload):
         dlg._render_items()
 
 
+def _enum_brushes(dlg, needle):
+    existing = {it.get("brush") for it in dlg._cur_items()
+                if isinstance(it, dict) and it.get("brush")}
+    try:
+        presets = Krita.instance().resources("preset")
+    except Exception:
+        return
+    for p in presets:
+        try:
+            name = p.name() or ""
+            filename = p.filename() or ""
+        except Exception:
+            continue
+        if needle and needle not in name.lower() and needle not in filename.lower():
+            continue
+        if filename in existing:
+            continue
+        yield (filename, name or filename)
+
+
+def _add_brush(dlg, payload):
+    filename = payload
+    existing = {it.get("brush") for it in dlg._cur_items()
+                if isinstance(it, dict) and it.get("brush")}
+    if filename in existing:
+        return
+    label = filename
+    try:
+        for p in Krita.instance().resources("preset"):
+            try:
+                if p.filename() == filename:
+                    label = p.name() or filename
+                    break
+            except Exception:
+                continue
+    except Exception:
+        pass
+    dlg._cur_items().append({"brush": filename, "label": label})
+    dlg._render_items()
+
+
 # Order = order shown in the "Add items" combo. Append new sources here to extend.
 ADD_SOURCES = [
     AddSource("actions", "Krita Actions", TYPE_CMD, _enum_actions, _add_action),
     AddSource("blend", "Layer Blend Mode", TYPE_BLEND, _enum_blend, _add_blend),
+    AddSource("brush", "Brushes", TYPE_BRUSH, _enum_brushes, _add_brush),
 ]
 
 
@@ -553,6 +596,8 @@ class ListMenuDialog(QDialog):
                 return "script:" + (it.get("label", "") or "")
             if it.get("blend") is not None:
                 return "blend:" + (it.get("blend", "") or "")
+            if it.get("brush") is not None:
+                return "brush:" + (it.get("brush", "") or "")
             if it.get("name") is not None:
                 return it["name"]
         return None
@@ -577,6 +622,8 @@ class ListMenuDialog(QDialog):
                     typ, text = TYPE_SCRIPT, f"[script] {it.get('label', 'Script')}"
                 elif it.get("blend") is not None:
                     typ, text = TYPE_BLEND, f"\u25c6 {it.get('label', it['blend'])}"
+                elif it.get("brush") is not None:
+                    typ, text = TYPE_BRUSH, it.get("label", it["brush"])
                 elif it.get("name") is not None:
                     typ, text = TYPE_MENU, f"\u25b8 {it['name']}"
             entry = QListWidgetItem(text)
@@ -785,6 +832,13 @@ class ListMenuDialog(QDialog):
                 cur["label"] = new_label.strip()
                 self._render_items()
             return
+        if isinstance(cur, dict) and cur.get("brush") is not None:
+            new_label, ok = QInputDialog.getText(
+                self, "Rename Brush", "Display name:", text=cur.get("label", ""))
+            if ok:
+                cur["label"] = new_label.strip()
+                self._render_items()
+            return
         # command: set custom label
         default = (cur.get("label", "") if isinstance(cur, dict) else "") \
             or self._catalog.get(cur["id"] if isinstance(cur, dict) else cur,
@@ -825,6 +879,9 @@ class ListMenuDialog(QDialog):
                 elif entry.get("blend") is not None:
                     parent_item.addChild(QTreeWidgetItem(
                         ["◆ " + (entry.get("label", entry["blend"]) or entry["blend"])]))
+                elif entry.get("brush") is not None:
+                    parent_item.addChild(QTreeWidgetItem(
+                        ["🖌 " + (entry.get("label", entry["brush"]) or entry["brush"])]))
                 elif entry.get("name") is not None:
                     child = QTreeWidgetItem([entry["name"]])
                     parent_item.addChild(child)

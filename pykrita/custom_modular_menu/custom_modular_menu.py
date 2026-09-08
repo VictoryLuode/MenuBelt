@@ -27,7 +27,8 @@ from PyQt5.QtWidgets import (
     QTextEdit,
 )
 
-from .config import load_lists, notify_refresh, register_refresh, run_composite_op, run_script
+from .config import (load_lists, notify_refresh, register_refresh,
+                     run_brush, run_composite_op, run_script)
 from .pie import PieWidget
 
 # Keys that on their own are modifiers, not real shortcuts
@@ -290,6 +291,11 @@ class ListMenuExtension(Extension):
                     slices.append((entry.get("label", oid), None,
                                    lambda o=oid: run_composite_op(o)))
                     continue
+                elif entry.get("brush") is not None:
+                    bfile = entry.get("brush", "")
+                    slices.append((entry.get("label", bfile), None,
+                                   lambda f=bfile: run_brush(f)))
+                    continue
                 elif entry.get("name") is not None:
                     continue  # submenu: not representable in a single-level pie (v1)
                 else:
@@ -408,6 +414,14 @@ class ListMenuExtension(Extension):
                     bact.triggered.connect(
                         lambda _=False, o=entry.get("blend", ""): run_composite_op(o))
                     parent_menu.addAction(bact)
+                    continue
+                elif entry.get("brush") is not None:
+                    br_act = QAction(entry.get("label", entry["brush"]), parent_menu)
+                    if ident_map is not None:
+                        ident_map[br_act] = ("brush", entry.get("brush", ""))
+                    br_act.triggered.connect(
+                        lambda _=False, f=entry.get("brush", ""): run_brush(f))
+                    parent_menu.addAction(br_act)
                     continue
                 elif entry.get("name") is not None:
                     sub = parent_menu.addMenu(entry["name"])
