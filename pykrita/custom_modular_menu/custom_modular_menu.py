@@ -16,7 +16,7 @@ import time
 
 from krita import Extension, Krita
 from PyQt5.QtCore import QEvent, QObject, QPoint, Qt
-from PyQt5.QtGui import QCursor, QKeySequence
+from PyQt5.QtGui import QCursor, QFont, QKeySequence
 from PyQt5.QtWidgets import (
     QAction,
     QApplication,
@@ -50,7 +50,7 @@ QMenu {
 QMenu::item {
     background: transparent;
     color: #e8e8e8;
-    padding: 5px 18px 5px 10px;
+    padding: 5px 18px 5px 4px;
 }
 QMenu::item:selected {
     background-color: #3d3d3d;
@@ -284,6 +284,9 @@ class ListMenuExtension(Extension):
         first = menu.actions()[0]
         title = QAction(lst["name"], menu)
         title.setEnabled(False)
+        tf = title.font()
+        tf.setPointSize(max(6, tf.pointSize() - 1))
+        title.setFont(tf)
         menu.insertAction(first, title)
         menu.insertSeparator(first)
         self._force_close_on_trigger(menu)
