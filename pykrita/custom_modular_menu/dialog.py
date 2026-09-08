@@ -5,6 +5,8 @@ a live Current Menu list, shortcut conflict detection, and config export/import.
 """
 
 import json
+import os
+import sqlite3
 
 from krita import Krita
 from PyQt5.QtCore import Qt
@@ -29,6 +31,7 @@ from PyQt5.QtWidgets import (
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
+    QWidget,
 )
 
 from .config import (
@@ -51,6 +54,42 @@ TYPE_SCRIPT = "script"
 TYPE_BLEND = "blend"
 TYPE_CAT = "category"
 TYPE_BRUSH = "brush"
+
+
+def _load_preset_tags():
+    """Return (sorted_tag_names, {preset_name: frozenset(tag_names)}) for Krita
+    brush presets, read from Krita's resourcecache.sqlite.
+
+    The libkis library API exposes no Resource.tags(), so we read Krita's own
+    resource DB (the cache the app maintains) to map preset names to tags.
+    resource_type_id 5 == 'paintoppresets'. Returns ([], {}) on any error.
+    """
+    try:
+        root = os.path.abspath(os.path.join(
+            os.path.dirname(__file__), "..", ".."))
+        db = os.path.join(root, "resourcecache.sqlite")
+        if not os.path.exists(db):
+            return [], {}
+        con = sqlite3.connect("file:%s?mode=ro" % db.replace("\\", "/"), uri=True)
+        try:
+            tags = set()
+            mapping = {}
+            cur = con.execute(
+                "select r.name, t.name from resources r "
+                "join resource_tags rt on rt.resource_id = r.id and rt.active = 1 "
+                "join tags t on t.id = rt.tag_id and t.active = 1 "
+                "where r.resource_type_id = 5")
+            for name, tag in cur:
+                if not name:
+                    continue
+                tags.add(tag)
+                mapping.setdefault(name, set()).add(tag)
+        finally:
+            con.close()
+        return sorted(tags, key=lambda s: s.lower()), \
+               {k: frozenset(v) for k, v in mapping.items()}
+    except Exception:
+        return [], {}
 
 
 class AddSource:
@@ -156,6 +195,9 @@ class ListMenuDialog(QDialog):
         self._loading_sc = False
         self._brush_icons = {}      # preset name -> QIcon (or None)
         self._presets = None        # cached resources("preset") dict
+        self._tags_loaded = False   # lazy: brush tag filter data
+        self._brush_tags = []       # sorted tag names for brush presets
+        self._preset_tags = {}      # preset name -> frozenset(tag names)
         self._sources = list(ADD_SOURCES)
         self._action_categories = load_action_categories()
         catalog_ids = set(self._catalog.keys())
@@ -168,6 +210,7 @@ class ListMenuDialog(QDialog):
         self._update_show_icons_check()
         self._render_current()
         self._update_left_shortcut()
+        self._update_tag_widget()
 
     # ---------- Size (remembered) ----------
     def _apply_default_size(self):
@@ -315,6 +358,16 @@ class ListMenuDialog(QDialog):
         self.add_type.addItems([s.label for s in self._sources])
         self.add_type.currentIndexChanged.connect(lambda _i: self._on_add_type_changed())
         av.addWidget(self.add_type)
+        # Tag filter row: shown only when the brush source is active.
+        self.tag_widget = QWidget()
+        tag_row = QHBoxLayout(self.tag_widget)
+        tag_row.setContentsMargins(0, 0, 0, 0)
+        tag_row.addWidget(QLabel("Tag:"))
+        self.tag_filter = QComboBox()
+        self.tag_filter.currentIndexChanged.connect(lambda _i: self._reload_available())
+        tag_row.addWidget(self.tag_filter, 1)
+        av.addWidget(self.tag_widget)
+        self.tag_widget.setVisible(False)
         search_row = QHBoxLayout()
         self.search_box = QLineEdit()
         self.search_box.setPlaceholderText("Search…")
@@ -715,7 +768,26 @@ class ListMenuDialog(QDialog):
             return self._sources[idx]
         return None
 
+    def _ensure_tags_loaded(self):
+        if not self._tags_loaded:
+            self._brush_tags, self._preset_tags = _load_preset_tags()
+            self._tags_loaded = True
+
+    def _update_tag_widget(self):
+        src = self._current_source()
+        is_brush = src is not None and src.key == "brush"
+        self.tag_widget.setVisible(is_brush)
+        if not is_brush:
+            return
+        self._ensure_tags_loaded()
+        items = ["All tags"] + self._brush_tags
+        self.tag_filter.blockSignals(True)
+        self.tag_filter.clear()
+        self.tag_filter.addItems(items)
+        self.tag_filter.blockSignals(False)
+
     def _on_add_type_changed(self):
+        self._update_tag_widget()
         self._reload_available()
 
     def _reload_available(self):
@@ -740,7 +812,17 @@ class ListMenuDialog(QDialog):
                     leaf.setData(0, ROLE_TYPE, TYPE_CMD)
                     parent.addChild(leaf)
         else:
+            current_tag = None
+            if src.key == "brush":
+                t = self.tag_filter.currentText()
+                current_tag = t if (t and t != "All tags") else None
+                if current_tag is not None:
+                    self._ensure_tags_loaded()
             for payload, text in src.enum_fn(self, needle):
+                if src.key == "brush" and current_tag is not None:
+                    tags = self._preset_tags.get(payload)
+                    if not tags or current_tag not in tags:
+                        continue
                 leaf = QTreeWidgetItem([text])
                 leaf.setData(0, ROLE_TOKEN, payload)
                 leaf.setData(0, ROLE_TYPE, src.item_type)
