@@ -11,7 +11,7 @@ display order, so reordering items in the editor reorders the pie directions.
 
 import math
 
-from PyQt5.QtCore import QPointF, QRectF, Qt, QTimer
+from PyQt5.QtCore import QPointF, QRect, QRectF, Qt, QTimer
 from PyQt5.QtGui import QColor, QCursor, QFont, QPainter, QPen
 from PyQt5.QtWidgets import QWidget
 
@@ -121,7 +121,7 @@ class PieWidget(QWidget):
             p.setPen(QPen(QColor(255, 255, 255, 210) if active else QColor(150, 150, 150, 160), 2))
             p.drawEllipse(QPointF(x, y), self.ITEM_R, self.ITEM_R)
             if icon is not None and not icon.isNull():
-                icon.paint(p, QRectF(x - 16, y - 16, 32, 32))
+                icon.paint(p, QRect(int(x - 16), int(y - 16), 32, 32))
             elif label:
                 p.setPen(QColor(230, 230, 230))
                 p.setFont(QFont("sans-serif", 9))
