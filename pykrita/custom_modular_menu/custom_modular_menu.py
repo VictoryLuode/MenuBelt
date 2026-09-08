@@ -67,6 +67,7 @@ class ListMenuExtension(Extension):
         self._shortcut_map = {}   # shortcut string -> callable
         self._popup_active = False
         self._popup_menu_ref = None
+        self._last_identity = None  # identity of last-triggered item (reposition marker)
         self._ignore_until = 0.0  # debounce: swallow re-triggers right after closing
         # App-level key filter (global, sees every key press regardless of focus)
         self._app_filter = _KeyFilter(self)
@@ -159,14 +160,29 @@ class ListMenuExtension(Extension):
                 return entry["menu"]
         return self._windows[0]["menu"] if self._windows else None
 
+    def _find_action(self, ident_map, identity):
+        """Return the QAction in ident_map whose identity matches (or None)."""
+        if identity is None or not ident_map:
+            return None
+        for act, ident in ident_map.items():
+            if ident == identity:
+                return act
+        return None
+
     def pop_menu(self, *_):
         """Open the whole multi-list menu under the cursor of the active window."""
         if self._popup_active or time.time() < self._ignore_until:
             return
-        menu = self._build_popup_menu(self._active_window_widget())
+        ident_map = {}
+        menu = self._build_popup_menu(self._active_window_widget(), ident_map)
+        at = self._find_action(ident_map, self._last_identity)
         self._popup_active = True
         try:
-            menu.exec_(QCursor.pos())
+            triggered = menu.exec_(QCursor.pos(), at)
+            if triggered is not None:
+                ident = ident_map.get(triggered)
+                if ident is not None:
+                    self._last_identity = ident
         finally:
             self._popup_active = False
             self._popup_menu_ref = None
@@ -184,29 +200,35 @@ class ListMenuExtension(Extension):
         if not lst.get("active", True):
             return
         parent = self._active_window_widget()
+        ident_map = {}
         menu = QMenu(parent)
-        self._build_menu_node(menu, lst)
+        self._build_menu_node(menu, lst, ident_map)
         if not menu.actions():
             menu.deleteLater()
             return
         self._force_close_on_trigger(menu)
+        at = self._find_action(ident_map, self._last_identity)
         self._popup_active = True
         try:
-            menu.exec_(QCursor.pos())
+            triggered = menu.exec_(QCursor.pos(), at)
+            if triggered is not None:
+                ident = ident_map.get(triggered)
+                if ident is not None:
+                    self._last_identity = ident
         finally:
             self._popup_active = False
             self._popup_menu_ref = None
             self._ignore_until = time.time() + 0.3
             menu.deleteLater()
 
-    def _build_popup_menu(self, parent):
+    def _build_popup_menu(self, parent, ident_map=None):
         """Build a fresh cursor popup menu (lists -> items + edit footer)."""
         menu = QMenu(parent)
         for lst in load_lists():
             if not lst.get("active", True):
                 continue
             sub = menu.addMenu(lst["name"])
-            self._build_menu_node(sub, lst)
+            self._build_menu_node(sub, lst, ident_map)
         menu.addSeparator()
         edit_act = menu.addAction("Edit Custom List…")
         edit_act.triggered.connect(self.open_editor)
@@ -244,8 +266,12 @@ class ListMenuExtension(Extension):
         act.triggered.connect(native.trigger)
         return act
 
-    def _build_menu_node(self, parent_menu, node):
-        """Recursively add a menu node's commands, scripts and submenus."""
+    def _build_menu_node(self, parent_menu, node, ident_map=None):
+        """Recursively add a menu node's commands, scripts and submenus.
+
+        ident_map (optional) maps each added leaf QAction -> an identity tuple,
+        so the popup can remember/relocate the last-triggered item.
+        """
         for entry in node.get("items", []):
             aid, label = None, ""
             if isinstance(entry, str):
@@ -255,19 +281,23 @@ class ListMenuExtension(Extension):
                     aid, label = entry["id"], entry.get("label", "")
                 elif entry.get("script") is not None:
                     sact = QAction(entry.get("label", "Script"), parent_menu)
+                    if ident_map is not None:
+                        ident_map[sact] = ("script", entry.get("label", "Script"))
                     sact.triggered.connect(
                         lambda _=False, c=entry.get("script", ""): run_script(c))
                     parent_menu.addAction(sact)
                     continue
                 elif entry.get("blend") is not None:
                     bact = QAction(entry.get("label", entry["blend"]), parent_menu)
+                    if ident_map is not None:
+                        ident_map[bact] = ("blend", entry.get("blend", ""))
                     bact.triggered.connect(
                         lambda _=False, o=entry.get("blend", ""): run_composite_op(o))
                     parent_menu.addAction(bact)
                     continue
                 elif entry.get("name") is not None:
                     sub = parent_menu.addMenu(entry["name"])
-                    self._build_menu_node(sub, entry)
+                    self._build_menu_node(sub, entry, ident_map)
                     continue
                 else:
                     continue
@@ -275,6 +305,8 @@ class ListMenuExtension(Extension):
                 continue
             act = self._make_item_action(aid, label, parent_menu)
             if act is not None:
+                if ident_map is not None:
+                    ident_map[act] = ("cmd", aid)
                 parent_menu.addAction(act)
 
     def _force_close_on_trigger(self, menu):
